@@ -22,7 +22,65 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get update -y
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
   network-manager cifs-utils unison rsync dosfstools
 
-# ------------------ 1. DNS / hosts ------------------
+# ------------------ 1. Boot configuration ------------------
+echo "[bootstrap-haaspi] Setting up /boot/firmware/config.txt for USB gadget mode…"
+sudo bash -c 'cat > /boot/firmware/config.txt' << 'BOOTCFG'
+# For more options and information see
+# http://rptl.io/configtxt
+# Some settings may impact device functionality. See link above for details
+
+# Uncomment some or all of these to enable the optional hardware interfaces
+#dtparam=i2c_arm=on
+#dtparam=i2s=on
+#dtparam=spi=on
+
+# Enable audio (loads snd_bcm2835)
+#dtparam=audio=on
+
+# Additional overlays and parameters are documented
+# /boot/firmware/overlays/README
+
+# Automatically load overlays for detected cameras
+#camera_auto_detect=1
+
+# Automatically load overlays for detected DSI displays
+display_auto_detect=1
+
+# Automatically load initramfs files, if found
+auto_initramfs=1
+
+# Enable DRM VC4 V3D driver
+#dtoverlay=vc4-kms-v3d
+#max_framebuffers=2
+
+# Don't have the firmware create an initial video= setting in cmdline.txt.
+# Use the kernel's default instead.
+disable_fw_kms_setup=1
+
+# Run in 64-bit mode
+arm_64bit=1
+
+# Disable compensation for displays with overscan
+disable_overscan=1
+
+# Run as fast as firmware / board allows
+#arm_boost=1
+
+[all]
+# Enable USB gadget mode on Zero 2W
+dtoverlay=dwc2,dr_mode=peripheral
+
+hdmi_force_hotplug=1
+hdmi_group=2
+hdmi_mode=82
+BOOTCFG
+
+echo "[bootstrap-haaspi] Setting up /boot/firmware/cmdline.txt for USB gadget kernel parameters…"
+sudo bash -c 'cat > /boot/firmware/cmdline.txt' << 'CMDLINE'
+console=serial0,115200 console=tty1 root=PARTUUID=8597b831-02 rootfstype=ext4 fsck.repair=yes rootwait quiet modules-load=dwc2,g_mass_storage g_mass_storage.file=/piusb.img g_mass_storage.ro=0 g_mass_storage.stall=0 g_mass_storage.removable=1
+CMDLINE
+
+# ------------------ 2. DNS / hosts ------------------
 echo "[bootstrap-haaspi] Ensuring /etc/hosts has ${HAAS_HOSTNAME} -> ${HAAS_IP}…"
 if ! grep -q "${HAAS_HOSTNAME}" /etc/hosts; then
   echo "${HAAS_IP}   ${HAAS_HOSTNAME}" | sudo tee -a /etc/hosts >/dev/null
@@ -30,7 +88,7 @@ else
   echo "[bootstrap-haaspi] ${HAAS_HOSTNAME} already present in /etc/hosts, leaving it."
 fi
 
-# ------------------ 2. Samba credentials ------------------
+# ------------------ 3. Samba credentials ------------------
 echo "[bootstrap-haaspi] Ensuring /etc/samba and credentials file…"
 sudo mkdir -p /etc/samba
 
@@ -45,7 +103,7 @@ else
   echo "[bootstrap-haaspi] ${CRED_FILE} already exists; leaving it unchanged."
 fi
 
-# ------------------ 3. CIFS automount ------------------
+# ------------------ 4. CIFS automount ------------------
 echo "[bootstrap-haaspi] Setting up CIFS automount at ${HAAS_MNT}…"
 sudo mkdir -p "${HAAS_MNT}"
 
@@ -76,7 +134,7 @@ Where=${HAAS_MNT}
 WantedBy=multi-user.target
 AMT
 
-# ------------------ 4. USB image ------------------
+# ------------------ 5. USB image ------------------
 echo "[bootstrap-haaspi] Ensuring ${USB_IMG} exists…"
 if [ ! -f "${USB_IMG}" ]; then
   echo "[bootstrap-haaspi] Creating 8GB USB image at ${USB_IMG}…"
@@ -89,7 +147,7 @@ fi
 
 sudo mkdir -p "${USB_MNT}"
 
-# ------------------ 5. haas-sync.sh ------------------
+# ------------------ 6. haas-sync.sh ------------------
 # echo "[bootstrap-haaspi] Installing /home/${ADMIN_USER}/haas-sync.sh…"
 sudo bash -c "cat > /home/${ADMIN_USER}/haas-sync.sh" << 'SYNC'
 !/usr/bin/env bash
