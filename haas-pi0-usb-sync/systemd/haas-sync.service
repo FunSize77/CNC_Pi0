@@ -1,0 +1,6 @@
+[Unit]
+Description=Sync HAAS USB image with CNC share (share-change only)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/haas-sync

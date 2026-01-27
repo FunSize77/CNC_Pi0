@@ -1,0 +1,322 @@
+#!/bin/bash
+#
+# haas-sync - Sync /piusb.bin contents with CNC program share (safe + resilient + recovery)
+#
+# Modes:
+#   Default (no args): "share" mode
+#       - Check SHARE_ROOT for changes (hash).
+#       - If no change since last run -> NO-OP, do NOT detach USB.
+#       - If changed -> run full sync.
+#
+#   --full: "full" mode
+#       - Always run full sync: detach USB, mount /piusb.bin, sync, unmount, reattach.
+#
+# Recovery behavior:
+#   - If mounted USB image has < MIN_USB_FILES files:
+#       -> FORCE one-way restore FROM share TO USB image (rsync share -> usb)
+#       -> DO NOT run Unison in recovery (prevents any chance of deleting share)
+#       -> DO NOT delete or modify the share in recovery mode.
+#
+# Safety behavior:
+#   - HARD FAIL if we cannot detach g_mass_storage (refuse to touch image while exported).
+#   - HARD FAIL if we cannot unmount cleanly.
+#   - Always reattach g_mass_storage before exiting on Unison fatal errors (so Haas isn't left dead).
+
+set -euo pipefail
+
+LOGFILE="/var/log/haas-sync.log"
+
+########## CONFIG - EDIT THESE FOR EACH PI ##########
+HAAS_HOSTNAME="haas120"
+
+# CNC program root directory on the *share* side.
+# This should already be mounted (e.g. via /etc/fstab using CIFS/SMB).
+SHARE_ROOT="/mnt/haasshare/Master Proven Prg/Mill/120-123 new 8-22"   # <-- CHANGE THIS PATH
+
+# Backing image exported over USB gadget
+PIUSB_IMAGE="/piusb.bin"          # leave unless you moved the image
+
+# Where we temporarily mount the backing image for syncing
+PIUSB_MOUNT="/mnt/piusb"          # leave unless you know why you're changing it
+
+# Where we store the last-known hash of the share
+STATE_DIR="/var/lib/haas-sync"
+SHARE_HASH_FILE="${STATE_DIR}/share_hash_${HAAS_HOSTNAME}.txt"
+
+# --- SAFETY / RECOVERY ---
+MIN_USB_FILES=250                 # if the mounted USB image has fewer files than this -> recovery restore from share
+UNISON_RETRIES=3                  # retry Unison if files changed during sync
+UNISON_RETRY_SLEEP=2              # seconds between retries
+
+# Prevent overlapping timer runs
+LOCKFILE="/run/haas-sync.lock"
+
+# Optional backups of the image BEFORE touching it
+BACKUP_DIR="/var/backups/haas-sync"
+BACKUP_KEEP=0                    # keep newest N backups; 0 disables backups
+
+########## END CONFIG ##########
+
+MODE="share"
+if [[ "${1:-}" == "--full" ]]; then
+  MODE="full"
+fi
+
+log() {
+  local msg="$1"
+  echo "[$(date -Is)] haas-sync(${MODE}): $msg" | tee -a "$LOGFILE"
+}
+
+error_exit() {
+  log "ERROR: $1"
+  exit 1
+}
+
+compute_share_hash() {
+  # Hash based on file path + mtime + size.
+  # Cheap for ~450 files and avoids hashing file contents.
+  find "$SHARE_ROOT" -type f -printf '%P %T@ %s\n' 2>/dev/null | md5sum | awk '{print $1}'
+}
+
+recover_usb_from_share() {
+  log "RECOVERY: Restoring USB image contents from SHARE_ROOT -> PIUSB_MOUNT (one-way, share is source)."
+  log "RECOVERY: This will NOT delete anything on the share. It may delete extra files on the USB image to match the share."
+
+  command -v rsync >/dev/null 2>&1 || error_exit "rsync not found; install it (sudo apt-get install -y rsync)."
+
+  # Trailing slashes matter: copy *contents* of SHARE_ROOT into PIUSB_MOUNT.
+  # --delete applies ONLY to destination (USB image), never the share.
+  rsync -a --delete --info=stats2 \
+    --exclude='*~' \
+    --exclude='.*' \
+    --exclude='*.tmp' \
+    --exclude='*.csv' \
+    --exclude='.backups' \
+    "${SHARE_ROOT%/}/" "${PIUSB_MOUNT%/}/"
+
+  log "RECOVERY: rsync complete."
+}
+
+# Must be root
+if [[ $EUID -ne 0 ]]; then
+  error_exit "This script must be run as root (use sudo)."
+fi
+
+# One run at a time
+exec 9>"$LOCKFILE"
+if ! flock -n 9; then
+  log "Another haas-sync is already running; exiting."
+  exit 0
+fi
+
+log "start"
+log "Using HAAS_HOSTNAME='${HAAS_HOSTNAME}'"
+log "Using SHARE_ROOT='${SHARE_ROOT}'"
+
+# Basic sanity checks
+[[ -f "$PIUSB_IMAGE" ]] || error_exit "Backing image '$PIUSB_IMAGE' not found."
+[[ -d "$SHARE_ROOT" ]] || error_exit "Share root '$SHARE_ROOT' does not exist (mount issue?)."
+
+mkdir -p "$PIUSB_MOUNT" "$STATE_DIR"
+
+########## 0) SHARE-ONLY CHECK (for timer runs) ##########
+
+CURRENT_SHARE_HASH="$(compute_share_hash || echo "")"
+if [[ -z "$CURRENT_SHARE_HASH" ]]; then
+  log "WARNING: compute_share_hash returned empty hash (no files or error?)"
+fi
+
+if [[ "$MODE" == "share" ]]; then
+  PREV_SHARE_HASH=""
+  if [[ -f "$SHARE_HASH_FILE" ]]; then
+    PREV_SHARE_HASH="$(cat "$SHARE_HASH_FILE" 2>/dev/null || echo "")"
+  fi
+
+  if [[ -n "$PREV_SHARE_HASH" && "$CURRENT_SHARE_HASH" == "$PREV_SHARE_HASH" ]]; then
+    log "No changes detected in SHARE_ROOT; skipping sync."
+    log "done (no-op)"
+    exit 0
+  fi
+
+  log "Changes detected in SHARE_ROOT (prev='$PREV_SHARE_HASH', current='$CURRENT_SHARE_HASH'); running full sync."
+else
+  log "--full mode requested; running full sync regardless of share hash."
+fi
+
+########## 1) Detach g_mass_storage (HARD FAIL if this doesn't work) ##########
+
+log "Detaching g_mass_storage..."
+if lsmod | grep -q '^g_mass_storage'; then
+  modprobe -r g_mass_storage || error_exit "Failed to detach g_mass_storage. Refusing to touch $PIUSB_IMAGE while exported."
+  if lsmod | grep -q '^g_mass_storage'; then
+    error_exit "g_mass_storage still loaded after modprobe -r. Aborting."
+  fi
+else
+  log "g_mass_storage is not currently loaded; nothing to detach."
+fi
+
+sleep 1  # give Haas/Windows a moment to see the disconnect
+
+########## Optional: backup the image BEFORE touching it ##########
+
+if [[ "$BACKUP_KEEP" -gt 0 ]]; then
+  mkdir -p "$BACKUP_DIR"
+  TS="$(date +%Y%m%d-%H%M%S)"
+  BAK="${BACKUP_DIR}/piusb_${HAAS_HOSTNAME}_${TS}.bin"
+  log "Backing up $PIUSB_IMAGE -> $BAK"
+  cp -f "$PIUSB_IMAGE" "$BAK" || error_exit "Backup failed; aborting to avoid making things worse."
+
+  # Rotate backups (keep newest N)
+  ls -1t "${BACKUP_DIR}/piusb_${HAAS_HOSTNAME}_"*.bin 2>/dev/null | tail -n +"$((BACKUP_KEEP+1))" | xargs -r rm -f
+fi
+
+########## 2) Mount /piusb.bin ##########
+
+log "Mounting ${PIUSB_IMAGE} to ${PIUSB_MOUNT} (rw,uid=1000,gid=1000,umask=002)..."
+if mount | grep -q " ${PIUSB_MOUNT} "; then
+  log "WARNING: ${PIUSB_MOUNT} is already mounted; unmounting first."
+  umount "$PIUSB_MOUNT" || error_exit "Failed to unmount existing ${PIUSB_MOUNT}"
+fi
+
+mount -o loop,rw,uid=1000,gid=1000,umask=002 "$PIUSB_IMAGE" "$PIUSB_MOUNT"
+
+USB_FILES=$(find "$PIUSB_MOUNT" -type f 2>/dev/null | wc -l || echo 0)
+SHARE_FILES=$(find "$SHARE_ROOT" -type f 2>/dev/null | wc -l || echo 0)
+log "Counts: USB files=${USB_FILES}; SHARE files=${SHARE_FILES}"
+
+########## 2b) Recovery if USB looks wiped ##########
+
+RECOVERY_MODE=0
+UNISON_STATUS=0
+
+if [[ "$USB_FILES" -lt "$MIN_USB_FILES" ]]; then
+  log "SAFETY TRIP: USB file count ${USB_FILES} < MIN_USB_FILES ${MIN_USB_FILES}."
+  log "Entering RECOVERY MODE: force copy SHARE -> USB. DO NOT DELETE SHARE."
+
+  RECOVERY_MODE=1
+  recover_usb_from_share
+
+  USB_FILES_RECOVERED=$(find "$PIUSB_MOUNT" -type f 2>/dev/null | wc -l || echo 0)
+  log "RECOVERY: USB file count after restore=${USB_FILES_RECOVERED}"
+
+  if [[ "$USB_FILES_RECOVERED" -lt "$MIN_USB_FILES" ]]; then
+    log "RECOVERY FAILED: USB still below minimum after restore. Not safe to continue."
+    # mark as safety trip; we'll still unmount/reattach, but do not update share hash.
+    UNISON_STATUS=99
+  else
+    log "RECOVERY SUCCESS: USB restored from share."
+    UNISON_STATUS=0
+  fi
+fi
+
+########## 3) Two-way sync with Unison (skip if recovery mode) ##########
+
+run_unison_once() {
+  set +e
+  unison "$PIUSB_MOUNT" "$SHARE_ROOT" \
+    -auto \
+    -batch \
+    -ignore 'Name *~' \
+    -ignore 'Name .*' \
+    -ignore 'Name *.tmp' \
+    -ignore 'Name *.csv' \
+    -ignore 'Name System Volume Information' \
+    -ignore 'Name *.db' \
+    -ignore 'Name *.ini' \
+    -logfile "$LOGFILE" \
+    -ui text \
+    -prefer "$SHARE_ROOT" \
+    -force newer \
+    -times \
+    -confirmbigdel=true
+  local st=$?
+
+  return $st
+}
+
+if [[ "$UNISON_STATUS" -ne 99 ]]; then
+  if [[ "$RECOVERY_MODE" -eq 1 ]]; then
+    log "RECOVERY MODE: Skipping Unison to avoid any chance of propagating deletions to the share."
+  else
+    log "Starting Unison two-way sync..."
+    attempt=1
+    while true; do
+      log "Unison attempt ${attempt}/${UNISON_RETRIES}..."
+      run_unison_once
+      UNISON_STATUS=$?
+      log "Unison exited with status $UNISON_STATUS"
+
+      # Fatal errors: >=3
+      if [[ $UNISON_STATUS -ge 3 ]]; then
+        log "Unison fatal error (status=$UNISON_STATUS). Will proceed to unmount/reattach, then fail."
+        break
+      fi
+
+      # Status 0 means clean
+      if [[ $UNISON_STATUS -eq 0 ]]; then
+        break
+      fi
+
+      # Status 1/2 are non-fatal; optionally retry if log indicates "changed during sync"
+      if [[ $attempt -lt $UNISON_RETRIES ]]; then
+        if tail -n 200 "$LOGFILE" | grep -Eqi 'updated during|changed on disk|was modified|inconsistent state'; then
+          log "Detected 'changed during sync' pattern; retrying after ${UNISON_RETRY_SLEEP}s..."
+          sleep "$UNISON_RETRY_SLEEP"
+          attempt=$((attempt+1))
+          continue
+        fi
+      fi
+
+      # Accept warnings and continue
+      break
+    done
+
+    # Post-sync sanity check: USB shouldn't suddenly drop below minimum either
+    
+    USB_FILES_AFTER=$(find "$PIUSB_MOUNT" -type f 2>/dev/null | wc -l || echo 0)
+    log "Post-sync USB file count=${USB_FILES_AFTER}"
+    if [[ "$USB_FILES_AFTER" -lt "$MIN_USB_FILES" ]]; then
+      log "SAFETY TRIP: Post-sync USB file count ${USB_FILES_AFTER} < MIN_USB_FILES ${MIN_USB_FILES}."
+      log "Will NOT update share hash."
+      UNISON_STATUS=99
+    fi
+  fi
+fi
+
+########## 3b) Update share hash AFTER sync (only if we didn't safety trip) ##########
+set -e
+if [[ "$UNISON_STATUS" -ne 99 ]]; then
+  NEW_SHARE_HASH="$(compute_share_hash || echo "")"
+  log "Updating share hash to '$NEW_SHARE_HASH'"
+  echo "$NEW_SHARE_HASH" > "$SHARE_HASH_FILE"
+else
+  log "Skipping share hash update due to safety trip / recovery failure."
+fi
+
+########## 4) Unmount /piusb.bin (HARD FAIL if this doesn't work) ##########
+
+log "Unmounting ${PIUSB_MOUNT}..."
+sync || true
+umount "$PIUSB_MOUNT" || error_exit "Failed to unmount ${PIUSB_MOUNT}. Refusing to reattach USB gadget in unknown state."
+
+########## 5) Re-attach g_mass_storage ##########
+
+log "Re-attaching g_mass_storage..."
+modprobe g_mass_storage file="$PIUSB_IMAGE" stall=0 removable=1 ro=0 || error_exit "modprobe g_mass_storage failed; USB gadget not reattached."
+
+# Fail run AFTER reattach if needed
+if [[ $UNISON_STATUS -ge 3 ]]; then
+  error_exit "Unison fatal error (status=$UNISON_STATUS). Drive was reattached; check $LOGFILE."
+fi
+
+if [[ $UNISON_STATUS -eq 99 ]]; then
+  error_exit "Safety trip occurred (USB below minimum, recovery failed, or post-sync below minimum). Drive was reattached; investigate backups."
+fi
+
+if [[ $UNISON_STATUS -ge 1 ]]; then
+  log "WARNING: Unison reported non-fatal issues (status=$UNISON_STATUS). Drive was reattached."
+fi
+
+log "done"
+exit 0
+1

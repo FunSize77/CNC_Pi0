@@ -1,0 +1,10 @@
+[Unit]
+Description=Run haas-sync every 10 minutes (share-change only)
+
+[Timer]
+OnBootSec=60
+OnUnitActiveSec=600
+Unit=haas-sync.service
+
+[Install]
+WantedBy=timers.target

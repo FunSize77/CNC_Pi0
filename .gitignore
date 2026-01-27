@@ -1,0 +1,25 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Log files
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Credentials (never commit passwords)
+*credentials*
+*.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

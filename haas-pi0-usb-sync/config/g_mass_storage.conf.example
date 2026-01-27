@@ -1,0 +1,6 @@
+# Example modprobe configuration for g_mass_storage
+# If you copy this to /etc/modprobe.d/g_mass_storage.conf, then:
+#   modprobe g_mass_storage
+# will automatically use these options.
+
+options g_mass_storage file=/piusb.bin stall=0 removable=1 ro=0
