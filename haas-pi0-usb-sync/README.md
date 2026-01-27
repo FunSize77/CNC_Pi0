@@ -19,13 +19,13 @@ See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for detailed installation instructi
 
 This repo includes:
 
-- **`bootstrap-haaspi_l.sh`** (in parent directory)  
+- **`bootstrap-haaspi_l.sh`** (in parent directory)
   Automated installation script that configures everything on a fresh Debian Trixie install.
 
-- **`configure-machine.sh`** (in parent directory)  
+- **`configure-machine.sh`** (in parent directory)
   Helper script to configure the Pi for specific machines (haas030, haas120, haas122).
 
-- **`scripts/haas-sync`**  
+- **`scripts/haas-sync`**
   Sync script with two modes:
   - **share mode** (default, no args): checks the network share for changes every 10 minutes and only runs a full sync if something changed.
   - **full mode** (`--full`): always runs a full sync cycle (detach USB, mount `/piusb.bin`, Unison, reattach).
