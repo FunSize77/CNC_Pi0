@@ -89,6 +89,10 @@ if [ ! -f /piusb.bin ]; then
   echo "$LOG_TAG Creating /piusb.bin 8GB sparse file and formatting as vfat..."
   sudo dd if=/dev/zero of=/piusb.bin bs=1M count=0 seek=8192
   sudo mkfs.vfat /piusb.bin
+  if [ ! -f /piusb.bin ]; then
+    echo "$LOG_TAG ERROR: Failed to create /piusb.bin!"
+    exit 1
+  fi
 else
   echo "$LOG_TAG /piusb.bin already exists; leaving it in place."
 fi
@@ -186,8 +190,8 @@ if ! grep -q "$MARKER" "$BASHRC"; then
 
 # BEGIN HAASPI HELPERS
 # Run a sync (assumes passwordless sudo for systemctl start haas-sync.service)
+# Note: 'sync' is a system command, so we use haas-sync or hsync instead
 alias haas-sync='sudo systemctl start haas-sync.service'
-alias sync='haas-sync'
 alias hsync='haas-sync'
 
 status() {
@@ -285,12 +289,19 @@ sudo systemctl start haas-sync-full.timer
 
 if [ "$NEED_CREDS_FIX" = true ]; then
   echo "$LOG_TAG Skipping initial sync because $CRED_FILE still has placeholder password."
-  echo "$LOG_TAG Edit $CRED_FILE and set the real SCAN4 password, then run: sync"
+  echo "$LOG_TAG Edit $CRED_FILE and set the real SCAN4 password, then run: hsync"
 else
   echo "$LOG_TAG Forcing one initial sync..."
   sudo systemctl start haas-sync.service
 fi
 
 echo "$LOG_TAG Bootstrap complete."
-echo "$LOG_TAG IMPORTANT: edit $CRED_FILE and set the real password if you have not already."
-echo "$LOG_TAG ALSO: edit /home/admin/haas-sync.sh SHARE_ROOT if this is not a 120–123 mill."
+echo "$LOG_TAG"
+echo "$LOG_TAG NEXT STEPS:"
+echo "$LOG_TAG 1. Edit /usr/local/sbin/haas-sync and set:"
+echo "$LOG_TAG    - HAAS_HOSTNAME (e.g., 'haas030', 'haas120', 'haas122')"
+echo "$LOG_TAG    - SHARE_ROOT (path to your CNC programs on the network share)"
+echo "$LOG_TAG 2. If needed, edit $CRED_FILE and verify the password"
+echo "$LOG_TAG 3. Test with: hsync (or 'haas-sync')"
+echo "$LOG_TAG 4. Check logs with: status"
+echo "$LOG_TAG"

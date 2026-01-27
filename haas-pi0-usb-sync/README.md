@@ -8,10 +8,12 @@ and keep it in sync with a network share.
 1. Flash Debian Trixie x64 to your Pi Zero 2W
 2. Copy this repository and `bootstrap-haaspi_l.sh` to the Pi
 3. Run `./bootstrap-haaspi_l.sh` to automatically install everything
-4. Edit `/usr/local/sbin/haas-sync` to set your machine's `HAAS_HOSTNAME` and `SHARE_ROOT`
+4. Configure for your machine: `./configure-machine.sh haas030` (or haas120, haas122)
 5. The Pi will now sync with your network share automatically
 
 See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for detailed installation instructions.
+
+**For multiple machines:** See `../MULTI_MACHINE_DEPLOYMENT.md` for deploying to haas030, haas120, and haas122.
 
 ---
 
@@ -20,24 +22,27 @@ This repo includes:
 - **`bootstrap-haaspi_l.sh`** (in parent directory)  
   Automated installation script that configures everything on a fresh Debian Trixie install.
 
+- **`configure-machine.sh`** (in parent directory)  
+  Helper script to configure the Pi for specific machines (haas030, haas120, haas122).
+
 - **`scripts/haas-sync`**  
   Sync script with two modes:
   - **share mode** (default, no args): checks the network share for changes every 10 minutes and only runs a full sync if something changed.
   - **full mode** (`--full`): always runs a full sync cycle (detach USB, mount `/piusb.bin`, Unison, reattach).
 
-- **`systemd/usb-gadget.service`**  
+- **`systemd/usb-gadget.service`**
   Loads the `g_mass_storage` gadget at boot so the Pi appears as a USB drive.
 
-- **`systemd/haas-sync.service`** + **`systemd/haas-sync.timer`**  
+- **`systemd/haas-sync.service`** + **`systemd/haas-sync.timer`**
   Share-change-only sync every 10 minutes.
 
-- **`systemd/haas-sync-full.service`** + **`systemd/haas-sync-full.timer`**  
+- **`systemd/haas-sync-full.service`** + **`systemd/haas-sync-full.timer`**
   Forced full sync every hour to pick up HAAS-side changes.
 
-- **`config/g_mass_storage.conf.example`**  
+- **`config/g_mass_storage.conf.example`**
   Optional modprobe config for `g_mass_storage`.
 
-- **`docs/DEPLOYMENT.md`**  
+- **`docs/DEPLOYMENT.md`**
   Step‑by‑step deployment instructions (both automated and manual).
 
 ## High-level behavior
