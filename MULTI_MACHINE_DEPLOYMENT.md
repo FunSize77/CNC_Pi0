@@ -24,7 +24,7 @@ Each Pi will:
 
 For each Pi (haas030, haas120, haas122):
 
-1. Flash Raspberry Pi OS (Debian Trixie x64) to SD card
+1. Flash Raspberry Pi OS 64-bit (Bookworm or newer) to SD card
 2. Boot and configure:
    - Set hostname: `sudo hostnamectl set-hostname haas030` (or haas120, haas122)
    - Configure WiFi: `sudo nmcli device wifi connect "SSID" password "PASSWORD"`

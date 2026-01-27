@@ -5,7 +5,7 @@ and keep it in sync with a network share.
 
 ## Quick Start
 
-1. Flash Debian Trixie x64 to your Pi Zero 2W
+1. Flash Raspberry Pi OS 64-bit (Bookworm or newer) to your Pi Zero 2W
 2. Copy this repository and `bootstrap-haaspi_l.sh` to the Pi
 3. Run `./bootstrap-haaspi_l.sh` to automatically install everything
 4. Configure for your machine: `./configure-machine.sh haas030` (or haas120, haas122)

@@ -15,7 +15,7 @@ Turn a Raspberry Pi Zero 2W into a **network-synced USB stick** for Haas CNC mac
 
 ### 1. Prepare Your Pi
 
-- Flash **Debian Trixie x64** to your Raspberry Pi Zero 2W
+- Flash **Raspberry Pi OS 64-bit** (Bookworm or newer) to your Raspberry Pi Zero 2W
 - Connect to WiFi and enable SSH
 - Create user `admin` if not present
 
