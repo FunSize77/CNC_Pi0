@@ -1,9 +1,9 @@
-# Check-CNCPis.ps1
+param(
+    [Parameter(Mandatory = $true, ValueFromRemainingArguments = $true)]
+    [string[]]$ComputerName
+)
 
-$hosts = "cnc120","cnc121","cnc122","cnc123","cnc030","cnc031"
-
-foreach ($h in $hosts) {
-    $name = "$h.local"
+foreach ($name in $ComputerName) {
 
     try {
         $reply = Test-Connection -ComputerName $name -Count 1 -ErrorAction Stop

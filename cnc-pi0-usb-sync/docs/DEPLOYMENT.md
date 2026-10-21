@@ -32,8 +32,7 @@ chmod +x bootstrap-cncpi_l.sh
 
 The bootstrap script will automatically:
 - Install required packages (network-manager, cifs-utils, unison, rsync, dosfstools)
-- Add Weld-KC01 to /etc/hosts
-- Create SMB credentials file at `/etc/samba/credentials-cnc`
+- Create a placeholder SMB credentials file at `/etc/samba/credentials-cnc`
 - Create systemd mount units for the network share
 - Create the `/piusb.bin` disk image (8GB vfat)
 - Install the cnc-sync script to `/usr/local/sbin/cnc-sync`
@@ -46,22 +45,17 @@ The bootstrap script will automatically:
 
 ### 4. Configure per-Pi settings
 
-After the bootstrap completes, edit the cnc-sync script for your specific machine:
+Before syncing, edit `bootstrap-cncpi_l.sh` to set the `SMB_SERVER` and `SMB_SHARE` values for your environment. Add the SMB account details to `/etc/samba/credentials-cnc`.
 
 ```bash
-sudo nano /usr/local/sbin/cnc-sync
+sudo nano /etc/samba/credentials-cnc
 ```
 
-Set the appropriate values:
+Set the machine name and absolute share directory:
 
 ```bash
-CNC_HOSTNAME="cnc120"    # Change to your machine's hostname
-SHARE_ROOT="/mnt/cncshare/Master Proven Prg/Mill/120-123 new 8-22"  # Change to your share path
+./configure-machine.sh "$(hostname)" /mnt/cncshare/programs
 ```
-
-For example:
-- Mills 120-123: `/mnt/cncshare/Master Proven Prg/Mill/120-123 new 8-22`
-- Lathe 030: `/mnt/cncshare/Master Proven Prg/Lathe/`
 
 ### 5. Verify the SMB credentials
 
@@ -73,8 +67,8 @@ sudo nano /etc/samba/credentials-cnc
 
 Ensure it contains:
 ```
-username=SCAN4@weldracing.local
-password=Klimb-100
+username=YOUR_SMB_USERNAME
+password=YOUR_SMB_PASSWORD
 ```
 
 ### 6. Test the sync
@@ -83,7 +77,7 @@ Reload the configuration and run a test sync:
 
 ```bash
 sudo systemctl daemon-reload
-sync  # This is an alias for: sudo systemctl start cnc-sync.service
+hsync
 ```
 
 Check the logs:
@@ -119,8 +113,8 @@ sudo nano /usr/local/sbin/cnc-sync
 
 Set:
 ```bash
-CNC_HOSTNAME="cnc120"
-SHARE_ROOT="/mnt/cncshare/Master Proven Prg/Mill/120-123 new 8-22"
+CNC_HOSTNAME="$(hostname)"
+SHARE_ROOT="/mnt/cncshare/programs"
 ```
 
 ### 3. Enable and start services

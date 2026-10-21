@@ -2,6 +2,8 @@
 set -euo pipefail
 
 LOG_TAG="[bootstrap-cncpi]"
+SMB_SERVER="${SMB_SERVER:-fileserver.example.local}"
+SMB_SHARE="${SMB_SHARE:-cnc-programs}"
 
 echo "$LOG_TAG Starting CNCPi bootstrap..."
 
@@ -22,14 +24,6 @@ sudo mkdir -p /mnt/cncshare
 sudo mkdir -p /mnt/piusb
 
 
-# Ensure Weld-KC01 is resolvable
-if ! grep -q 'Weld-KC01' /etc/hosts; then
-  echo "$LOG_TAG Adding Weld-KC01 to /etc/hosts..."
-  echo '192.168.126.128    Weld-KC01' | sudo tee -a /etc/hosts >/dev/null
-else
-  echo "$LOG_TAG /etc/hosts already has Weld-KC01 entry; leaving it."
-fi
-
 # 3. Create credentials file
 echo "$LOG_TAG Ensuring /etc/samba exists..."
 sudo mkdir -p /etc/samba
@@ -38,38 +32,38 @@ CRED_FILE="/etc/samba/credentials-cnc"
 NEED_CREDS_FIX=false
 
 if [ ! -f "$CRED_FILE" ]; then
-  echo "$LOG_TAG Creating $CRED_FILE with password..."
+  echo "$LOG_TAG Creating $CRED_FILE with placeholder credentials..."
   sudo bash -c "cat > '$CRED_FILE' <<'EOF'
-username=SCAN4@weldracing.local
-password=Klimb-100
+username=YOUR_SMB_USERNAME
+password=YOUR_SMB_PASSWORD
 EOF
 "
   sudo chmod 600 "$CRED_FILE"
   NEED_CREDS_FIX=true
 else
   echo "$LOG_TAG $CRED_FILE already exists, leaving it alone."
-  if grep -q 'password=CHANGE_ME' "$CRED_FILE"; then
+  if grep -q 'YOUR_SMB_PASSWORD' "$CRED_FILE"; then
     NEED_CREDS_FIX=true
   fi
 fi
 
 # 4. Create mnt-cncshare.mount
 echo "$LOG_TAG Writing /etc/systemd/system/mnt-cncshare.mount..."
-sudo bash -c 'cat > /etc/systemd/system/mnt-cncshare.mount <<EOF
+sudo tee /etc/systemd/system/mnt-cncshare.mount >/dev/null <<EOF
 [Unit]
-Description=SMB mount for CNC share (Weld-KC01\\cnc programs)
+Description=SMB mount for CNC share
 After=network-online.target
 Wants=network-online.target
 
 [Mount]
-What=//Weld-KC01/cnc programs
+What=//${SMB_SERVER}/${SMB_SHARE}
 Where=/mnt/cncshare
 Type=cifs
 Options=credentials=/etc/samba/credentials-cnc,iocharset=utf8,vers=3.0,sec=ntlmssp,noperm,uid=1000,gid=1000,file_mode=0775,dir_mode=0775
 
 [Install]
 WantedBy=multi-user.target
-EOF'
+EOF
 
 # 5. Create mnt-cncshare.automount
 echo "$LOG_TAG Writing /etc/systemd/system/mnt-cncshare.automount..."
@@ -288,8 +282,8 @@ sudo systemctl start cnc-sync.timer
 sudo systemctl start cnc-sync-full.timer
 
 if [ "$NEED_CREDS_FIX" = true ]; then
-  echo "$LOG_TAG Skipping initial sync because $CRED_FILE still has placeholder password."
-  echo "$LOG_TAG Edit $CRED_FILE and set the real SCAN4 password, then run: hsync"
+  echo "$LOG_TAG Skipping initial sync because $CRED_FILE still has placeholder credentials."
+  echo "$LOG_TAG Edit $CRED_FILE with your SMB credentials, then run: hsync"
 else
   echo "$LOG_TAG Forcing one initial sync..."
   sudo systemctl start cnc-sync.service
@@ -299,7 +293,7 @@ echo "$LOG_TAG Bootstrap complete."
 echo "$LOG_TAG"
 echo "$LOG_TAG NEXT STEPS:"
 echo "$LOG_TAG 1. Edit /usr/local/sbin/cnc-sync and set:"
-echo "$LOG_TAG    - CNC_HOSTNAME (e.g., 'cnc030', 'cnc120', 'cnc122')"
+echo "$LOG_TAG    - CNC_HOSTNAME (the CNC name used for this installation)"
 echo "$LOG_TAG    - SHARE_ROOT (path to your CNC programs on the network share)"
 echo "$LOG_TAG 2. If needed, edit $CRED_FILE and verify the password"
 echo "$LOG_TAG 3. Test with: hsync (or 'cnc-sync')"

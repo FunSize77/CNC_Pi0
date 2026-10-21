@@ -1,6 +1,6 @@
-# CncPi0 - Raspberry Pi USB Wi-Fi Sync for CNC Machines
+# CNC Pi USB Wi-Fi Sync
 
-Turn a Raspberry Pi Zero 2W into a **network-synced USB stick** for CNC CNC machines. The Pi appears as a USB flash drive to the CNC while automatically syncing with your network share over Wi-Fi.
+Turn a Raspberry Pi Zero 2W into a **network-synced USB stick** for CNC machines. The Pi appears as a USB flash drive to the CNC while automatically syncing with your network share over Wi-Fi.
 
 ## Features
 
@@ -9,7 +9,7 @@ Turn a Raspberry Pi Zero 2W into a **network-synced USB stick** for CNC CNC mach
 - 🔒 **Safety protections** - prevents accidental deletion of network files
 - ⚡ **Smart syncing** - only syncs when changes detected
 - 🛠️ **Easy management** - simple bash commands for all operations
-- 🎯 **Multi-machine support** - pre-configured for cnc030, cnc120, cnc122
+- 🎯 **Machine-independent configuration** - set the hostname and share path for each installation
 
 ## Quick Start
 
@@ -36,12 +36,7 @@ cd ~/cncpi0
 ### 3. Configure for Your Machine
 
 ```bash
-# For lathe 030:
-./configure-machine.sh cnc030
-
-# For mills 120-123:
-./configure-machine.sh cnc120
-./configure-machine.sh cnc122
+./configure-machine.sh "$(hostname)" /mnt/cncshare/programs
 ```
 
 ### 4. You're Done!
@@ -63,7 +58,7 @@ After installation, these commands are available:
 
 ```
 Network Share (WiFi) ←→ Raspberry Pi ←→ CNC Machine (USB)
-   //Weld-KC01            /piusb.bin        USB Flash Drive
+   [SMB share]                           /piusb.bin        USB Flash Drive
 ```
 
 1. **Pi boots** → Appears as USB flash drive to CNC
@@ -74,7 +69,7 @@ Network Share (WiFi) ←→ Raspberry Pi ←→ CNC Machine (USB)
 ## Project Structure
 
 ```
-CncPi0/
+CNC-Pi-USB-Sync/
 ├── bootstrap-cncpi_l.sh          # Automated installation script
 ├── configure-machine.sh           # Machine configuration helper
 ├── MULTI_MACHINE_DEPLOYMENT.md   # Multi-machine deployment guide
@@ -89,17 +84,9 @@ CncPi0/
 └── keepalive.sh                   # USB keepalive configuration
 ```
 
-## Machine Configurations
-
-| Machine | Type  | Share Path |
-|---------|-------|-----------|
-| cnc030 | Lathe | `/mnt/cncshare/Master Proven Prg/Lathe/` |
-| cnc120 | Mill  | `/mnt/cncshare/Master Proven Prg/Mill/120-123 new 8-22` |
-| cnc122 | Mill  | `/mnt/cncshare/Master Proven Prg/Mill/120-123 new 8-22` |
-
 ## Documentation
 
-- 📖 **[MULTI_MACHINE_DEPLOYMENT.md](MULTI_MACHINE_DEPLOYMENT.md)** - Deploy to multiple machines (cnc030, cnc120, cnc122)
+- 📖 **[MULTI_MACHINE_DEPLOYMENT.md](MULTI_MACHINE_DEPLOYMENT.md)** - Configure and deploy to multiple machines
 - 📖 **[cnc-pi0-usb-sync/docs/DEPLOYMENT.md](cnc-pi0-usb-sync/docs/DEPLOYMENT.md)** - Detailed installation and troubleshooting
 - 📖 **[cnc_pi_0_docs.md](cnc_pi_0_docs.md)** - Complete system documentation
 - 📖 **[CHANGES.md](CHANGES.md)** - Recent changes and fixes
@@ -113,11 +100,11 @@ CncPi0/
 
 ### Software
 - Debian Trixie x64 (Raspberry Pi OS)
-- Network access to SMB share: `//Weld-KC01/cnc programs`
+- Network access to an SMB share configured for your environment
 
 ### Network
 - WiFi connectivity
-- Access to Windows file server (Weld-KC01 at 192.168.126.128)
+- Access to your configured file server
 
 ## Safety Features
 
@@ -157,7 +144,7 @@ See [DEPLOYMENT.md](cnc-pi0-usb-sync/docs/DEPLOYMENT.md) for detailed troublesho
 
 ## Contributing
 
-This is a specialized project for Weld Racing's CNC machines. If you're adapting it for your own use, you'll need to modify:
+Configure these installation-specific values before syncing:
 
 1. Network share path and credentials
 2. Machine hostnames
@@ -165,7 +152,7 @@ This is a specialized project for Weld Racing's CNC machines. If you're adapting
 
 ## License
 
-Internal project for Weld Racing CNC operations.
+This project is intended to be adapted to your CNC environment.
 
 ## Support
 
@@ -176,4 +163,4 @@ For issues or questions, check:
 
 ---
 
-**Status**: ✅ Production Ready - Currently deployed on cnc030, cnc120, cnc122
+**Status**: Configure and test in your environment before deployment.

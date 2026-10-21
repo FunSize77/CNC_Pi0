@@ -1,4 +1,3 @@
--- Active: 1759788571275@@127.0.0.1@3306
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -8,9 +7,10 @@ ADMIN_USER="admin"
 ADMIN_UID=1000
 ADMIN_GID=1000
 
-CNC_HOSTNAME="Weld-KC01"
-CNC_IP="192.168.126.128"
-CNC_SHARE="//${CNC_HOSTNAME}/CNC Programs"
+CNC_HOSTNAME="${CNC_HOSTNAME:-$(hostname)}"
+CNC_SHARE_SERVER="${CNC_SHARE_SERVER:-fileserver.example.local}"
+CNC_SHARE_NAME="${CNC_SHARE_NAME:-cnc-programs}"
+CNC_SHARE="//${CNC_SHARE_SERVER}/${CNC_SHARE_NAME}"
 CRED_FILE="/etc/samba/credentials-cnc"
 USB_IMG="/piusb.bin"
 USB_MNT="/mnt/piusb"
@@ -80,23 +80,15 @@ sudo bash -c 'cat > /boot/firmware/cmdline.txt' << 'CMDLINE'
 console=serial0,115200 console=tty1 root=PARTUUID=8597b831-02 rootfstype=ext4 fsck.repair=yes rootwait quiet modules-load=dwc2,g_mass_storage g_mass_storage.file=/piusb.img g_mass_storage.ro=0 g_mass_storage.stall=0 g_mass_storage.removable=1
 CMDLINE
 
-# ------------------ 2. DNS / hosts ------------------
-echo "[bootstrap-cncpi] Ensuring /etc/hosts has ${CNC_HOSTNAME} -> ${CNC_IP}…"
-if ! grep -q "${CNC_HOSTNAME}" /etc/hosts; then
-  echo "${CNC_IP}   ${CNC_HOSTNAME}" | sudo tee -a /etc/hosts >/dev/null
-else
-  echo "[bootstrap-cncpi] ${CNC_HOSTNAME} already present in /etc/hosts, leaving it."
-fi
-
 # ------------------ 3. Samba credentials ------------------
 echo "[bootstrap-cncpi] Ensuring /etc/samba and credentials file…"
 sudo mkdir -p /etc/samba
 
 if [ ! -f "${CRED_FILE}" ]; then
-  echo "[bootstrap-cncpi] Creating ${CRED_FILE} with default credentials (edit later if needed)…"
+  echo "[bootstrap-cncpi] Creating ${CRED_FILE} with placeholder credentials…"
   sudo bash -c "cat > '${CRED_FILE}'" << 'CREDS'
-username=SCAN4@weldracing.local
-password=Klimb-100
+username=YOUR_SMB_USERNAME
+password=YOUR_SMB_PASSWORD
 CREDS
   sudo chmod 600 "${CRED_FILE}"
 else
@@ -109,7 +101,7 @@ sudo mkdir -p "${CNC_MNT}"
 
 sudo bash -c "cat > /etc/systemd/system/mnt-cncshare.mount" << MNT
 [Unit]
-Description=SMB mount for CNC share (${CNC_HOSTNAME}\\CNC Programs)
+Description=SMB mount for CNC share
 After=network-online.target
 Wants=network-online.target
 
@@ -174,18 +166,7 @@ log() {
   echo "[$(timestamp)] cnc-sync: $*" | tee -a "$LOG"
 }
 
-# --------- SELECT SHARE ROOT BY HOSTNAME ---------
-HOSTNAME="$(hostname)"
-
-case "$HOSTNAME" in
-  CNC120|CNC121|CNC122|CNC123)
-    SHARE_ROOT="/mnt/cncshare/Master Proven Prg/Mill/120-123 new 8-22"
-    ;;
-  *)
-    log "WARNING: Unknown hostname '$HOSTNAME', defaulting SHARE_ROOT to mill 120-123 path."
-    SHARE_ROOT="/mnt/cncshare/Master Proven Prg/Mill/120-123 new 8-22"
-    ;;
-esac
+SHARE_ROOT="/mnt/cncshare/programs"
 
 log "Using SHARE_ROOT='$SHARE_ROOT' for hostname '$HOSTNAME'."
 log "start"

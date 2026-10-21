@@ -27,11 +27,11 @@ set -euo pipefail
 LOGFILE="/var/log/cnc-sync.log"
 
 ########## CONFIG - EDIT THESE FOR EACH PI ##########
-CNC_HOSTNAME="cnc120"
+CNC_HOSTNAME="$(hostname)"
 
 # CNC program root directory on the *share* side.
 # This should already be mounted (e.g. via /etc/fstab using CIFS/SMB).
-SHARE_ROOT="/mnt/cncshare/Master Proven Prg/Mill/120-123 new 8-22"   # <-- CHANGE THIS PATH
+SHARE_ROOT="/mnt/cncshare/programs"   # <-- CHANGE THIS PATH
 
 # Backing image exported over USB gadget
 PIUSB_IMAGE="/piusb.bin"          # leave unless you moved the image

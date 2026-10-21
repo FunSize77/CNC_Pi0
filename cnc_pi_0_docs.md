@@ -2,7 +2,7 @@
 
 # CncPi0 – Raspberry Pi USB Wi-Fi Adapter for CNC
 
-This project turns a Raspberry Pi Zero 2W (or similar) into a **network-synced USB stick** for CNC (and other) CNC machines.
+This project turns a Raspberry Pi Zero 2W (or similar) into a **network-synced USB stick** for CNC machines.
 
 ## Quick Start
 
@@ -63,12 +63,12 @@ This README gives the high-level design and the “how to use it” view. For im
 
 ### Key Paths
 
-- SMB share: `//Weld-KC01/cnc programs`
+- SMB share: `//fileserver.example.local/cnc programs`
 - Pi mountpoint: `/mnt/cncshare`
 - Local USB image: `/piusb.bin` (vfat, e.g. 8 GB)
 - USB image mountpoint: `/mnt/piusb`
 - CNC program root on share (example for mills 120–123):\
-  `/mnt/cncshare/Master Proven Prg/Mill/120-123 new 8-22`
+  `/mnt/cncshare/programs/Mill/programs`
 - Log: `/var/log/cnc-sync.log`
 
 ---
@@ -131,7 +131,7 @@ On the CNC control:
    - Select **USB DEVICE**
    - Press `F1` → **MOUNT**
 
-Programs on the share path (e.g. `.../Mill/120-123 new 8-22`) appear on the CNC USB.
+Programs on the share path (e.g. `.../Mill/programs`) appear on the CNC USB.
 
 To get new programs from the network → CNC:
 
@@ -207,11 +207,11 @@ All run as user `admin` via the helper aliases/functions in `~/.bashrc`:
 
 Recommended workflow:
 
-1. Treat CNC120 (known-good Pi) as **golden image**.
-2. Use Win32 Disk Imager (or `dd`) to read its SD → `CNC120-golden.img`.
+1. Treat CNC-MACHINE (known-good Pi) as **golden image**.
+2. Use Win32 Disk Imager (or `dd`) to read its SD → `CNC-MACHINE-golden.img`.
 3. Write that image to other SD cards.
 4. On each new Pi:
-   - Change hostname: `CNC121`, `CNC122`, `CNC123`, `CNC030`, `CNC031`.
+   - Change hostname: `CNC-MACHINE`, `CNC-MACHINE`, `CNC-MACHINE`, `CNC-MACHINE`, `CNC-MACHINE`.
    - Edit `/etc/hosts` to match hostname.
    - Adjust `SHARE_ROOT` in `/home/admin/cnc-sync.sh`:
      - Mills (120–123): same Mill root.
@@ -285,8 +285,8 @@ LOG=/var/log/cnc-sync.log
 USB_IMG="/piusb.bin"
 USB_MNT="/mnt/piusb"
 
-# Example for CNC120–123 mill
-SHARE_ROOT="/mnt/cncshare/Master Proven Prg/Mill/120-123 new 8-22"
+# Example for CNC-MACHINE–123 mill
+SHARE_ROOT="/mnt/cncshare/programs/Mill/programs"
 
 ADMIN_UID=1000
 ADMIN_GID=1000
@@ -418,12 +418,12 @@ File: `/etc/systemd/system/mnt-cncshare.mount`
 
 ```ini
 [Unit]
-Description=SMB mount for CNC share (Weld-KC01\cnc programs)
+Description=SMB mount for CNC share (fileserver.example.local\cnc programs)
 After=network-online.target
 Wants=network-online.target
 
 [Mount]
-What=//Weld-KC01/cnc programs
+What=//fileserver.example.local/cnc programs
 Where=/mnt/cncshare
 Type=cifs
 Options=credentials=/etc/samba/credentials-cnc,iocharset=utf8,vers=3.0,sec=ntlmssp,noperm,uid=1000,gid=1000,file_mode=0775,dir_mode=0775
@@ -452,9 +452,8 @@ WantedBy=multi-user.target
 File: `/etc/samba/credentials-cnc`
 
 ```text
-username=SCAN4
-password=YOUR_PASSWORD_HERE
-domain=weldracing.local
+username=YOUR_SMB_USERNAME
+password=YOUR_SMB_PASSWORD
 ```
 
 Permissions:
@@ -577,34 +576,34 @@ nmcli -t -f NAME,TYPE,DEVICE connection show
 # example: preconfigured:802-11-wireless:wlan0
 ```
 
-### Backup network (example: SSID `WRAP`)
+### Backup network (example: SSID `YOUR_WIFI_NETWORK`)
 
 Create manually (even if out of range):
 
 ```bash
-sudo nmcli connection add type wifi ifname wlan0 con-name "WRAP" ssid "WRAP"
-sudo nmcli connection modify "WRAP" wifi-sec.key-mgmt wpa-psk wifi-sec.psk "MWr@c1ng$"
-sudo nmcli connection modify "WRAP" connection.autoconnect yes
+sudo nmcli connection add type wifi ifname wlan0 con-name "YOUR_WIFI_NETWORK" ssid "YOUR_WIFI_NETWORK"
+sudo nmcli --ask device wifi connect "SSID"
+sudo nmcli connection modify "YOUR_WIFI_NETWORK" connection.autoconnect yes
 ```
 
 Set priorities:
 
 ```bash
 sudo nmcli connection modify "preconfigured" connection.autoconnect-priority 100
-sudo nmcli connection modify "WRAP"         connection.autoconnect-priority 10
+sudo nmcli connection modify "YOUR_WIFI_NETWORK"         connection.autoconnect-priority 10
 ```
 
-NetworkManager will prefer `preconfigured` when both are in range, and fall back to `WRAP` when needed.
+NetworkManager will prefer `preconfigured` when both are in range, and fall back to `YOUR_WIFI_NETWORK` when needed.
 
 ---
 
 ## 6. Cloning Checklist (Per New Pi)
 
-1. Write `CNC120-golden.img` to SD.
+1. Write `CNC-MACHINE-golden.img` to SD.
 2. Boot Pi, SSH in as `admin`.
 3. Change hostname:
    ```bash
-   sudo hostnamectl set-hostname CNC121   # adjust per machine
+   sudo hostnamectl set-hostname CNC-MACHINE   # adjust per machine
    sudo nano /etc/hosts                    # update 127.0.1.1 line
    ```
 4. If needed, change `SHARE_ROOT` in `/home/admin/cnc-sync.sh`.

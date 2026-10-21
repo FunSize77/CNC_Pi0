@@ -1,6 +1,6 @@
 # CNC Pi Zero 2W USB Sync
 
-Raspberry Pi Zero 2W setup to emulate a USB flash drive for CNC CNC controllers
+Raspberry Pi Zero 2W setup to emulate a USB flash drive for CNC controllers
 and keep it in sync with a network share.
 
 ## Quick Start
@@ -8,12 +8,12 @@ and keep it in sync with a network share.
 1. Flash Raspberry Pi OS 64-bit (Bookworm or newer) to your Pi Zero 2W
 2. Copy this repository and `bootstrap-cncpi_l.sh` to the Pi
 3. Run `./bootstrap-cncpi_l.sh` to automatically install everything
-4. Configure for your machine: `./configure-machine.sh cnc030` (or cnc120, cnc122)
+4. Configure for your machine: `./configure-machine.sh "$(hostname)" /mnt/cncshare/programs`
 5. The Pi will now sync with your network share automatically
 
 See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for detailed installation instructions.
 
-**For multiple machines:** See `../MULTI_MACHINE_DEPLOYMENT.md` for deploying to cnc030, cnc120, and cnc122.
+**For multiple machines:** See `../MULTI_MACHINE_DEPLOYMENT.md` for deploying to multiple CNC machines.
 
 ---
 
@@ -23,7 +23,7 @@ This repo includes:
   Automated installation script that configures everything on a fresh Debian Trixie install.
 
 - **`configure-machine.sh`** (in parent directory)
-  Helper script to configure the Pi for specific machines (cnc030, cnc120, cnc122).
+  Helper script to configure the Pi hostname and CNC program share path.
 
 - **`scripts/cnc-sync`**
   Sync script with two modes:
