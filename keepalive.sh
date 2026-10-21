@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-echo "=== Haas Pi keepalive configuration ==="
+echo "=== CNC Pi keepalive configuration ==="
 
 # Must be root
 if [[ "$EUID" -ne 0 ]]; then
@@ -38,7 +38,7 @@ if [[ -f "$BOOT_CONF" ]]; then
     else
         {
             echo ""
-            echo "# Added by haas-keepalive.sh: enable USB gadget mode for Haas"
+            echo "# Added by cnc-keepalive.sh: enable USB gadget mode for CNC"
             echo "dtoverlay=dwc2,dr_mode=peripheral"
         } >> "$BOOT_CONF"
         echo "Added dtoverlay=dwc2,dr_mode=peripheral to config.txt"

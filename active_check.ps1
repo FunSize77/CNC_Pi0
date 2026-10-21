@@ -1,9 +1,9 @@
-# Check-HaasPis.ps1
+param(
+    [Parameter(Mandatory = $true, ValueFromRemainingArguments = $true)]
+    [string[]]$ComputerName
+)
 
-$hosts = "haas120","haas121","haas122","haas123","haas030","haas031"
-
-foreach ($h in $hosts) {
-    $name = "$h.local"
+foreach ($name in $ComputerName) {
 
     try {
         $reply = Test-Connection -ComputerName $name -Count 1 -ErrorAction Stop

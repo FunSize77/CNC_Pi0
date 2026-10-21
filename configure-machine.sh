@@ -1,54 +1,37 @@
 #!/usr/bin/env bash
 #
-# configure-machine.sh - Configure haas-sync for a specific machine
+# configure-machine.sh - Configure cnc-sync for a specific machine
 #
-# Usage: ./configure-machine.sh <machine-name>
-#   Example: ./configure-machine.sh haas030
-#            ./configure-machine.sh haas120
-#            ./configure-machine.sh haas122
+# Usage: ./configure-machine.sh <machine-name> <absolute-share-path>
 
 set -euo pipefail
 
-if [ $# -ne 1 ]; then
-  echo "Usage: $0 <machine-name>"
-  echo ""
-  echo "Examples:"
-  echo "  $0 haas030   # for lathe 030"
-  echo "  $0 haas120   # for mill 120-123"
-  echo "  $0 haas122   # for mill 120-123"
+if [ $# -ne 2 ]; then
+  echo "Usage: $0 <machine-name> <absolute-share-path>"
   exit 1
 fi
 
 MACHINE="$1"
-SYNC_SCRIPT="/usr/local/sbin/haas-sync"
+SHARE_PATH="$2"
+SYNC_SCRIPT="/usr/local/sbin/cnc-sync"
 
 if [ ! -f "$SYNC_SCRIPT" ]; then
   echo "ERROR: $SYNC_SCRIPT not found!"
-  echo "Please run bootstrap-haaspi_l.sh first."
+  echo "Please run bootstrap-cncpi_l.sh first."
   exit 1
 fi
 
-echo "Configuring haas-sync for machine: $MACHINE"
+echo "Configuring cnc-sync for machine: $MACHINE"
 
-# Define share paths for each machine
-case "$MACHINE" in
-  haas030)
-    SHARE_PATH="/mnt/haasshare/Master Proven Prg/Lathe/"
-    ;;
-  haas120|haas121|haas122|haas123)
-    SHARE_PATH="/mnt/haasshare/Master Proven Prg/Mill/120-123 new 8-22"
-    ;;
-  *)
-    echo "ERROR: Unknown machine '$MACHINE'"
-    echo "Known machines: haas030, haas120, haas121, haas122, haas123"
-    echo ""
-    echo "If this is a new machine, edit this script to add the share path,"
-    echo "or manually edit $SYNC_SCRIPT to set:"
-    echo "  HAAS_HOSTNAME=\"$MACHINE\""
-    echo "  SHARE_ROOT=\"/mnt/haasshare/path/to/programs\""
-    exit 1
-    ;;
-esac
+if [[ ! "$MACHINE" =~ ^[A-Za-z0-9._-]+$ ]]; then
+  echo "ERROR: Machine name may contain only letters, numbers, dots, underscores, and hyphens."
+  exit 1
+fi
+
+if [[ "$SHARE_PATH" != /* || "$SHARE_PATH" == *$'\n'* ]]; then
+  echo "ERROR: Share path must be an absolute path on one line."
+  exit 1
+fi
 
 echo "  Machine: $MACHINE"
 echo "  Share path: $SHARE_PATH"
@@ -58,13 +41,16 @@ echo ""
 TEMP_FILE=$(mktemp)
 cp "$SYNC_SCRIPT" "$TEMP_FILE"
 
-# Update HAAS_HOSTNAME
-sed -i "s/^HAAS_HOSTNAME=.*/HAAS_HOSTNAME=\"$MACHINE\"/" "$TEMP_FILE"
-
-# Update SHARE_ROOT
-# Escape forward slashes for sed
-ESCAPED_PATH=$(echo "$SHARE_PATH" | sed 's/\//\\\//g')
-sed -i "s/^SHARE_ROOT=.*/SHARE_ROOT=\"$SHARE_PATH\"   # <-- CHANGE THIS PATH/" "$TEMP_FILE"
+printf -v QUOTED_MACHINE '%q' "$MACHINE"
+printf -v QUOTED_SHARE_PATH '%q' "$SHARE_PATH"
+QUOTED_MACHINE=${QUOTED_MACHINE//\\/\\\\}
+QUOTED_MACHINE=${QUOTED_MACHINE//&/\\&}
+QUOTED_MACHINE=${QUOTED_MACHINE//|/\\|}
+QUOTED_SHARE_PATH=${QUOTED_SHARE_PATH//\\/\\\\}
+QUOTED_SHARE_PATH=${QUOTED_SHARE_PATH//&/\\&}
+QUOTED_SHARE_PATH=${QUOTED_SHARE_PATH//|/\\|}
+sed -i "s|^CNC_HOSTNAME=.*|CNC_HOSTNAME=${QUOTED_MACHINE}|" "$TEMP_FILE"
+sed -i "s|^SHARE_ROOT=.*|SHARE_ROOT=${QUOTED_SHARE_PATH}|" "$TEMP_FILE"
 
 # Show the diff
 echo "Changes to be made:"

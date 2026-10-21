@@ -1,10 +1,10 @@
 [Unit]
-Description=Run full haas-sync every hour
+Description=Run full cnc-sync every hour
 
 [Timer]
 OnBootSec=300
 OnUnitActiveSec=3600
-Unit=haas-sync-full.service
+Unit=cnc-sync-full.service
 
 [Install]
 WantedBy=timers.target

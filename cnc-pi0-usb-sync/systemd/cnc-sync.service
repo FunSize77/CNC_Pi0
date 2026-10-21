@@ -1,0 +1,6 @@
+[Unit]
+Description=Sync CNC USB image with CNC share (share-change only)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/cnc-sync
