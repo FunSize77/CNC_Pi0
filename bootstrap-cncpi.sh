@@ -2,28 +2,28 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "[bootstrap-haaspi] Starting…"
+echo "[bootstrap-cncpi] Starting…"
 
 ADMIN_USER="admin"
 ADMIN_UID=1000
 ADMIN_GID=1000
 
-HAAS_HOSTNAME="Weld-KC01"
-HAAS_IP="192.168.126.128"
-HAAS_SHARE="//${HAAS_HOSTNAME}/CNC Programs"
-CRED_FILE="/etc/samba/credentials-haas"
+CNC_HOSTNAME="Weld-KC01"
+CNC_IP="192.168.126.128"
+CNC_SHARE="//${CNC_HOSTNAME}/CNC Programs"
+CRED_FILE="/etc/samba/credentials-cnc"
 USB_IMG="/piusb.bin"
 USB_MNT="/mnt/piusb"
-HAAS_MNT="/mnt/haasshare"
+CNC_MNT="/mnt/cncshare"
 
 # ------------------ 0. Packages ------------------
-echo "[bootstrap-haaspi] Installing required packages (network-manager, cifs-utils, unison, rsync, dosfstools)…"
+echo "[bootstrap-cncpi] Installing required packages (network-manager, cifs-utils, unison, rsync, dosfstools)…"
 sudo DEBIAN_FRONTEND=noninteractive apt-get update -y
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
   network-manager cifs-utils unison rsync dosfstools
 
 # ------------------ 1. Boot configuration ------------------
-echo "[bootstrap-haaspi] Setting up /boot/firmware/config.txt for USB gadget mode…"
+echo "[bootstrap-cncpi] Setting up /boot/firmware/config.txt for USB gadget mode…"
 sudo bash -c 'cat > /boot/firmware/config.txt' << 'BOOTCFG'
 # For more options and information see
 # http://rptl.io/configtxt
@@ -75,47 +75,47 @@ hdmi_group=2
 hdmi_mode=82
 BOOTCFG
 
-echo "[bootstrap-haaspi] Setting up /boot/firmware/cmdline.txt for USB gadget kernel parameters…"
+echo "[bootstrap-cncpi] Setting up /boot/firmware/cmdline.txt for USB gadget kernel parameters…"
 sudo bash -c 'cat > /boot/firmware/cmdline.txt' << 'CMDLINE'
 console=serial0,115200 console=tty1 root=PARTUUID=8597b831-02 rootfstype=ext4 fsck.repair=yes rootwait quiet modules-load=dwc2,g_mass_storage g_mass_storage.file=/piusb.img g_mass_storage.ro=0 g_mass_storage.stall=0 g_mass_storage.removable=1
 CMDLINE
 
 # ------------------ 2. DNS / hosts ------------------
-echo "[bootstrap-haaspi] Ensuring /etc/hosts has ${HAAS_HOSTNAME} -> ${HAAS_IP}…"
-if ! grep -q "${HAAS_HOSTNAME}" /etc/hosts; then
-  echo "${HAAS_IP}   ${HAAS_HOSTNAME}" | sudo tee -a /etc/hosts >/dev/null
+echo "[bootstrap-cncpi] Ensuring /etc/hosts has ${CNC_HOSTNAME} -> ${CNC_IP}…"
+if ! grep -q "${CNC_HOSTNAME}" /etc/hosts; then
+  echo "${CNC_IP}   ${CNC_HOSTNAME}" | sudo tee -a /etc/hosts >/dev/null
 else
-  echo "[bootstrap-haaspi] ${HAAS_HOSTNAME} already present in /etc/hosts, leaving it."
+  echo "[bootstrap-cncpi] ${CNC_HOSTNAME} already present in /etc/hosts, leaving it."
 fi
 
 # ------------------ 3. Samba credentials ------------------
-echo "[bootstrap-haaspi] Ensuring /etc/samba and credentials file…"
+echo "[bootstrap-cncpi] Ensuring /etc/samba and credentials file…"
 sudo mkdir -p /etc/samba
 
 if [ ! -f "${CRED_FILE}" ]; then
-  echo "[bootstrap-haaspi] Creating ${CRED_FILE} with default credentials (edit later if needed)…"
+  echo "[bootstrap-cncpi] Creating ${CRED_FILE} with default credentials (edit later if needed)…"
   sudo bash -c "cat > '${CRED_FILE}'" << 'CREDS'
 username=SCAN4@weldracing.local
 password=Klimb-100
 CREDS
   sudo chmod 600 "${CRED_FILE}"
 else
-  echo "[bootstrap-haaspi] ${CRED_FILE} already exists; leaving it unchanged."
+  echo "[bootstrap-cncpi] ${CRED_FILE} already exists; leaving it unchanged."
 fi
 
 # ------------------ 4. CIFS automount ------------------
-echo "[bootstrap-haaspi] Setting up CIFS automount at ${HAAS_MNT}…"
-sudo mkdir -p "${HAAS_MNT}"
+echo "[bootstrap-cncpi] Setting up CIFS automount at ${CNC_MNT}…"
+sudo mkdir -p "${CNC_MNT}"
 
-sudo bash -c "cat > /etc/systemd/system/mnt-haasshare.mount" << MNT
+sudo bash -c "cat > /etc/systemd/system/mnt-cncshare.mount" << MNT
 [Unit]
-Description=SMB mount for Haas share (${HAAS_HOSTNAME}\\CNC Programs)
+Description=SMB mount for CNC share (${CNC_HOSTNAME}\\CNC Programs)
 After=network-online.target
 Wants=network-online.target
 
 [Mount]
-What=${HAAS_SHARE}
-Where=${HAAS_MNT}
+What=${CNC_SHARE}
+Where=${CNC_MNT}
 Type=cifs
 Options=credentials=${CRED_FILE},uid=${ADMIN_UID},gid=${ADMIN_GID},file_mode=0664,dir_mode=0775,vers=3.0,noserverino,iocharset=utf8
 
@@ -123,37 +123,37 @@ Options=credentials=${CRED_FILE},uid=${ADMIN_UID},gid=${ADMIN_GID},file_mode=066
 WantedBy=multi-user.target
 MNT
 
-sudo bash -c "cat > /etc/systemd/system/mnt-haasshare.automount" << AMT
+sudo bash -c "cat > /etc/systemd/system/mnt-cncshare.automount" << AMT
 [Unit]
-Description=Automount Haas SMB share at ${HAAS_MNT}
+Description=Automount CNC SMB share at ${CNC_MNT}
 
 [Automount]
-Where=${HAAS_MNT}
+Where=${CNC_MNT}
 
 [Install]
 WantedBy=multi-user.target
 AMT
 
 # ------------------ 5. USB image ------------------
-echo "[bootstrap-haaspi] Ensuring ${USB_IMG} exists…"
+echo "[bootstrap-cncpi] Ensuring ${USB_IMG} exists…"
 if [ ! -f "${USB_IMG}" ]; then
-  echo "[bootstrap-haaspi] Creating 8GB USB image at ${USB_IMG}…"
+  echo "[bootstrap-cncpi] Creating 8GB USB image at ${USB_IMG}…"
   sudo dd if=/dev/zero of="${USB_IMG}" bs=1G count=8 status=progress
   sudo mkfs.vfat -F 32 "${USB_IMG}"
   sudo chown "${ADMIN_USER}:${ADMIN_USER}" "${USB_IMG}"
 else
-  echo "[bootstrap-haaspi] ${USB_IMG} already exists; leaving it."
+  echo "[bootstrap-cncpi] ${USB_IMG} already exists; leaving it."
 fi
 
 sudo mkdir -p "${USB_MNT}"
 
-# ------------------ 6. haas-sync.sh ------------------
-# echo "[bootstrap-haaspi] Installing /home/${ADMIN_USER}/haas-sync.sh…"
-sudo bash -c "cat > /home/${ADMIN_USER}/haas-sync.sh" << 'SYNC'
+# ------------------ 6. cnc-sync.sh ------------------
+# echo "[bootstrap-cncpi] Installing /home/${ADMIN_USER}/cnc-sync.sh…"
+sudo bash -c "cat > /home/${ADMIN_USER}/cnc-sync.sh" << 'SYNC'
 !/usr/bin/env bash
 set -euo pipefail
 
-LOG=/var/log/haas-sync.log
+LOG=/var/log/cnc-sync.log
 
 USB_IMG="/piusb.bin"
 USB_MNT="/mnt/piusb"
@@ -171,19 +171,19 @@ timestamp() {
 }
 
 log() {
-  echo "[$(timestamp)] haas-sync: $*" | tee -a "$LOG"
+  echo "[$(timestamp)] cnc-sync: $*" | tee -a "$LOG"
 }
 
 # --------- SELECT SHARE ROOT BY HOSTNAME ---------
 HOSTNAME="$(hostname)"
 
 case "$HOSTNAME" in
-  HAAS120|HAAS121|HAAS122|HAAS123)
-    SHARE_ROOT="/mnt/haasshare/Master Proven Prg/Mill/120-123 new 8-22"
+  CNC120|CNC121|CNC122|CNC123)
+    SHARE_ROOT="/mnt/cncshare/Master Proven Prg/Mill/120-123 new 8-22"
     ;;
   *)
     log "WARNING: Unknown hostname '$HOSTNAME', defaulting SHARE_ROOT to mill 120-123 path."
-    SHARE_ROOT="/mnt/haasshare/Master Proven Prg/Mill/120-123 new 8-22"
+    SHARE_ROOT="/mnt/cncshare/Master Proven Prg/Mill/120-123 new 8-22"
     ;;
 esac
 
@@ -197,10 +197,10 @@ if [ ! -f "$USB_IMG" ]; then
 fi
 
 # Ensure SMB share is mounted via automount
-if ! mountpoint -q /mnt/haasshare; then
-  log "Forcing SMB automount by listing /mnt/haasshare..."
-  if ! ls /mnt/haasshare >/dev/null 2>&1; then
-    log "ERROR: Unable to access /mnt/haasshare; aborting sync."
+if ! mountpoint -q /mnt/cncshare; then
+  log "Forcing SMB automount by listing /mnt/cncshare..."
+  if ! ls /mnt/cncshare >/dev/null 2>&1; then
+    log "ERROR: Unable to access /mnt/cncshare; aborting sync."
     exit 1
   fi
 fi
@@ -265,78 +265,78 @@ fi
 log "done"
 SYNC
 
-sudo chmod +x /home/${ADMIN_USER}/haas-sync.sh
-sudo chown ${ADMIN_USER}:${ADMIN_USER} /home/${ADMIN_USER}/haas-sync.sh
+sudo chmod +x /home/${ADMIN_USER}/cnc-sync.sh
+sudo chown ${ADMIN_USER}:${ADMIN_USER} /home/${ADMIN_USER}/cnc-sync.sh
 
 # ------------------ 6. systemd units ------------------
-echo "[bootstrap-haaspi] Writing haas-sync.service and haas-sync.timer…"
+echo "[bootstrap-cncpi] Writing cnc-sync.service and cnc-sync.timer…"
 
-sudo bash -c "cat > /etc/systemd/system/haas-sync.service" << 'SRV'
+sudo bash -c "cat > /etc/systemd/system/cnc-sync.service" << 'SRV'
 [Unit]
 Description=Sync SMB share to local USB image and attach RW (g_mass_storage)
-After=network-online.target mnt-haasshare.automount
+After=network-online.target mnt-cncshare.automount
 Wants=network-online.target
 
 [Service]
 Type=oneshot
 User=root
 Group=root
-ExecStart=/usr/bin/flock -n /run/lock/haas-sync.lock /home/admin/haas-sync.sh
+ExecStart=/usr/bin/flock -n /run/lock/cnc-sync.lock /home/admin/cnc-sync.sh
 Nice=10
 
 [Install]
 WantedBy=multi-user.target
 SRV
 
-sudo bash -c "cat > /etc/systemd/system/haas-sync.timer" << 'TMR'
+sudo bash -c "cat > /etc/systemd/system/cnc-sync.timer" << 'TMR'
 [Unit]
-Description=Periodic sync of Haas SMB share to USB image
+Description=Periodic sync of CNC SMB share to USB image
 
 [Timer]
 OnBootSec=30s
 OnUnitActiveSec=600s
-Unit=haas-sync.service
+Unit=cnc-sync.service
 
 [Install]
 WantedBy=timers.target
 TMR
 
 # ------------------ 7. Bash helpers ------------------
-echo "[bootstrap-haaspi] Ensuring HaasPi helpers (hsync, status, fix, off) are present in ~/.bashrc…"
+echo "[bootstrap-cncpi] Ensuring CNCPi helpers (hsync, status, fix, off) are present in ~/.bashrc…"
 
 BASHRC="/home/${ADMIN_USER}/.bashrc"
 
-# Remove any existing HaasPi helper block (old or new) to avoid duplicates
-sudo sed -i '/# --- HaasPi helpers BEGIN ---/,/# --- HaasPi helpers END ---/d' "${BASHRC}" 2>/dev/null || true
-sudo sed -i '/# BEGIN HAASPI HELPERS/,/# END HAASPI HELPERS/d' "${BASHRC}" 2>/dev/null || true
+# Remove any existing CNCPi helper block (old or new) to avoid duplicates
+sudo sed -i '/# --- CNCPi helpers BEGIN ---/,/# --- CNCPi helpers END ---/d' "${BASHRC}" 2>/dev/null || true
+sudo sed -i '/# BEGIN CNCPI HELPERS/,/# END CNCPI HELPERS/d' "${BASHRC}" 2>/dev/null || true
 
 # Append a single canonical helper block
 sudo bash -c "cat >> '${BASHRC}'" << 'BRC'
 
-# --- HaasPi helpers BEGIN ---
-alias haas-sync='sudo systemctl start haas-sync.service'
-alias hsync='haas-sync'
+# --- CNCPi helpers BEGIN ---
+alias cnc-sync='sudo systemctl start cnc-sync.service'
+alias hsync='cnc-sync'
 
 status() {
-  echo "=== haas-sync.service ==="
-  systemctl status haas-sync.service --no-pager
+  echo "=== cnc-sync.service ==="
+  systemctl status cnc-sync.service --no-pager
   echo
-  echo "=== haas-sync.timer ==="
-  systemctl status haas-sync.timer --no-pager
+  echo "=== cnc-sync.timer ==="
+  systemctl status cnc-sync.timer --no-pager
   echo
-  echo "=== last 20 lines of /var/log/haas-sync.log ==="
-  sudo tail -n 20 /var/log/haas-sync.log || true
+  echo "=== last 20 lines of /var/log/cnc-sync.log ==="
+  sudo tail -n 20 /var/log/cnc-sync.log || true
 }
 
 fix() {
   echo "[fix] Checking CIFS automount…"
-  systemctl status mnt-haasshare.automount --no-pager || true
+  systemctl status mnt-cncshare.automount --no-pager || true
   echo
   echo "[fix] Checking mount unit…"
-  systemctl status mnt-haasshare.mount --no-pager || true
+  systemctl status mnt-cncshare.mount --no-pager || true
   echo
   echo "[fix] Forcing one sync run…"
-  sudo systemctl start haas-sync.service
+  sudo systemctl start cnc-sync.service
 }
 
 off() {
@@ -344,22 +344,22 @@ off() {
   sleep 5
   sudo shutdown -h now
 }
-# --- HaasPi helpers END ---
+# --- CNCPi helpers END ---
 
 BRC
 
 # ------------------ 8. Enable units & initial sync ------------------
-echo "[bootstrap-haaspi] Reloading systemd and enabling units…"
+echo "[bootstrap-cncpi] Reloading systemd and enabling units…"
 sudo systemctl daemon-reload
-sudo systemctl enable mnt-haasshare.automount haas-sync.timer >/dev/null
+sudo systemctl enable mnt-cncshare.automount cnc-sync.timer >/dev/null
 
-echo "[bootstrap-haaspi] Starting automount and timer…"
-sudo systemctl start mnt-haasshare.automount
-sudo systemctl start haas-sync.timer
+echo "[bootstrap-cncpi] Starting automount and timer…"
+sudo systemctl start mnt-cncshare.automount
+sudo systemctl start cnc-sync.timer
 
-echo "[bootstrap-haaspi] Forcing one initial sync…"
-sudo systemctl start haas-sync.service || true
+echo "[bootstrap-cncpi] Forcing one initial sync…"
+sudo systemctl start cnc-sync.service || true
 
-echo "[bootstrap-haaspi] Done. You may want to 'exec bash' or log out/in to pick up new helpers."
+echo "[bootstrap-cncpi] Done. You may want to 'exec bash' or log out/in to pick up new helpers."
 source ~/.bashrc
-echo "[bootstrap-haaspi] Finished."
+echo "[bootstrap-cncpi] Finished."

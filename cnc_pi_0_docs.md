@@ -1,24 +1,24 @@
 # README.md
 
-# HaasPi0 – Raspberry Pi USB Wi-Fi Adapter for CNC
+# CncPi0 – Raspberry Pi USB Wi-Fi Adapter for CNC
 
-This project turns a Raspberry Pi Zero 2W (or similar) into a **network-synced USB stick** for Haas (and other) CNC machines.
+This project turns a Raspberry Pi Zero 2W (or similar) into a **network-synced USB stick** for CNC (and other) CNC machines.
 
 ## Quick Start
 
 For a fresh installation on Debian Trixie x64:
 
-1. Copy the `haas-pi0-usb-sync` directory and `bootstrap-haaspi_l.sh` to your Pi
-2. Run `./bootstrap-haaspi_l.sh` - it will automatically:
+1. Copy the `cnc-pi0-usb-sync` directory and `bootstrap-cncpi_l.sh` to your Pi
+2. Run `./bootstrap-cncpi_l.sh` - it will automatically:
    - Install all required packages
    - Create the USB image file
    - Install the sync script and systemd services
    - Configure mount points and credentials
    - Add helpful bash aliases (sync, status, off, fix)
-3. Edit `/usr/local/sbin/haas-sync` to set your machine's hostname and share path
+3. Edit `/usr/local/sbin/cnc-sync` to set your machine's hostname and share path
 4. Done! The Pi will automatically sync every 10 minutes
 
-See `haas-pi0-usb-sync/docs/DEPLOYMENT.md` for detailed instructions.
+See `cnc-pi0-usb-sync/docs/DEPLOYMENT.md` for detailed instructions.
 
 ---
 
@@ -37,7 +37,7 @@ The Pi:
 
 This README gives the high-level design and the “how to use it” view. For implementation details, see:
 
-- `README-haas-sync.md` – scripts, services, timers, aliases
+- `README-cnc-sync.md` – scripts, services, timers, aliases
 - `SAFETY-NOTES.md` – failure modes and how we avoid nuking the share
 
 ---
@@ -48,8 +48,8 @@ This README gives the high-level design and the “how to use it” view. For im
 
 - Raspberry Pi Zero 2W (or compatible with USB OTG)
 - MicroSD card (e.g. 128 GB, class 10)
-- Power + USB connection to Haas CNC:
-  - Pi OTG/data port → Haas USB port
+- Power + USB connection to CNC CNC:
+  - Pi OTG/data port → CNC USB port
 - Wi-Fi network with access to your Windows file server
 
 ### OS / Software
@@ -64,12 +64,12 @@ This README gives the high-level design and the “how to use it” view. For im
 ### Key Paths
 
 - SMB share: `//Weld-KC01/cnc programs`
-- Pi mountpoint: `/mnt/haasshare`
+- Pi mountpoint: `/mnt/cncshare`
 - Local USB image: `/piusb.bin` (vfat, e.g. 8 GB)
 - USB image mountpoint: `/mnt/piusb`
 - CNC program root on share (example for mills 120–123):\
-  `/mnt/haasshare/Master Proven Prg/Mill/120-123 new 8-22`
-- Log: `/var/log/haas-sync.log`
+  `/mnt/cncshare/Master Proven Prg/Mill/120-123 new 8-22`
+- Log: `/var/log/cnc-sync.log`
 
 ---
 
@@ -77,9 +77,9 @@ This README gives the high-level design and the “how to use it” view. For im
 
 ### Normal cycle (timer or manual `sync`):
 
-1. **SMB share** is auto-mounted on first access via `mnt-haasshare.automount` + `mnt-haasshare.mount`.
-2. `haas-sync.service` runs `/home/admin/haas-sync.sh`:
-   - Detaches `g_mass_storage` (USB disappears from Haas briefly).
+1. **SMB share** is auto-mounted on first access via `mnt-cncshare.automount` + `mnt-cncshare.mount`.
+2. `cnc-sync.service` runs `/home/admin/cnc-sync.sh`:
+   - Detaches `g_mass_storage` (USB disappears from CNC briefly).
    - Mounts `/piusb.bin` → `/mnt/piusb` RW as user `admin`.
    - Measures:
      - Used space on USB vs share
@@ -88,16 +88,16 @@ This README gives the high-level design and the “how to use it” view. For im
      - **Two-way Unison sync** (normal), or
      - **One-way rsync SHARE → USB** (if USB looks wiped but share is full).
    - Unmounts `/mnt/piusb`.
-   - Re-attaches `g_mass_storage` **RW** so Haas can read/write USB.
+   - Re-attaches `g_mass_storage` **RW** so CNC can read/write USB.
 3. Timer repeats this periodically.
 
-### Haas side:
+### CNC side:
 
 - Machine sees the Pi as a USB stick:
-  - Operator mounts USB in Haas control as usual.
+  - Operator mounts USB in CNC control as usual.
   - Programs can be **read from** and **written to** the USB device.
 - On the next sync:
-  - New/changed programs on Haas USB are pulled into the network share.
+  - New/changed programs on CNC USB are pulled into the network share.
   - New/changed programs on the network share are pushed down to the USB image.
 
 ---
@@ -111,7 +111,7 @@ The design is **two-way**, but with guard rails:
   - `-maxdelete 100` limits how much can be deleted per run.
 - **Protection case** (USB looks empty, share is “full”):
   - If USB used space `< 3.5 GB` *and* the share has `> 50` files,\
-    `haas-sync.sh` assumes **USB is the problem** and:
+    `cnc-sync.sh` assumes **USB is the problem** and:
     - Skips two-way Unison.
     - Runs `rsync -a --delete SHARE → USB` to **rebuild the USB image from the share**.
     - Never deletes anything from the network share in that mode.
@@ -122,26 +122,26 @@ See `SAFETY-NOTES.md` for deeper detail.
 
 ## 4. Usage – Operator View
 
-On the Haas control:
+On the CNC control:
 
-1. Plug Pi OTG USB into the Haas USB port.
-2. Power Pi (from Haas USB or separate PSU).
-3. On Haas:
+1. Plug Pi OTG USB into the CNC USB port.
+2. Power Pi (from CNC USB or separate PSU).
+3. On CNC:
    - `LIST PROGRAM`
    - Select **USB DEVICE**
    - Press `F1` → **MOUNT**
 
-Programs on the share path (e.g. `.../Mill/120-123 new 8-22`) appear on the Haas USB.
+Programs on the share path (e.g. `.../Mill/120-123 new 8-22`) appear on the CNC USB.
 
-To get new programs from the network → Haas:
+To get new programs from the network → CNC:
 
 - Save them to the configured share path.
 - Wait for the next timer sync, or ask someone to run `sync` on the Pi.
-- Refresh or remount the USB list on the Haas.
+- Refresh or remount the USB list on the CNC.
 
-To push proven programs from Haas → network:
+To push proven programs from CNC → network:
 
-- Save/copy the program from Haas control to USB.
+- Save/copy the program from CNC control to USB.
 - Wait for next timer or manual `sync`.
 - Program will show up in the network share folder.
 
@@ -159,7 +159,7 @@ All run as user `admin` via the helper aliases/functions in `~/.bashrc`:
   sync
   ```
 
-  Triggers `haas-sync.service` once.
+  Triggers `cnc-sync.service` once.
 
 - **Check status**:
 
@@ -169,8 +169,8 @@ All run as user `admin` via the helper aliases/functions in `~/.bashrc`:
 
   Shows:
 
-  - `systemctl status` for `haas-sync.service` and `haas-sync.timer`
-  - Last 20 lines of `/var/log/haas-sync.log`
+  - `systemctl status` for `cnc-sync.service` and `cnc-sync.timer`
+  - Last 20 lines of `/var/log/cnc-sync.log`
 
 - **Emergency repair** (“fix the USB pipeline”):
 
@@ -180,8 +180,8 @@ All run as user `admin` via the helper aliases/functions in `~/.bashrc`:
 
   Does:
 
-  - Ensures automount is enabled and `/mnt/haasshare` is reachable.
-  - Stops `haas-sync` service and timer.
+  - Ensures automount is enabled and `/mnt/cncshare` is reachable.
+  - Stops `cnc-sync` service and timer.
   - Detaches `g_mass_storage`, unmounts `/mnt/piusb`.
   - Runs `fsck.vfat -a /piusb.bin`.
   - Re-attaches `g_mass_storage` RW.
@@ -198,7 +198,7 @@ All run as user `admin` via the helper aliases/functions in `~/.bashrc`:
 
   - Stops timer and service.
   - Detaches USB gadget.
-  - Unmounts `/mnt/piusb` and `/mnt/haasshare`.
+  - Unmounts `/mnt/piusb` and `/mnt/cncshare`.
   - Calls `shutdown -h now`.
 
 ---
@@ -207,22 +207,22 @@ All run as user `admin` via the helper aliases/functions in `~/.bashrc`:
 
 Recommended workflow:
 
-1. Treat HAAS120 (known-good Pi) as **golden image**.
-2. Use Win32 Disk Imager (or `dd`) to read its SD → `HAAS120-golden.img`.
+1. Treat CNC120 (known-good Pi) as **golden image**.
+2. Use Win32 Disk Imager (or `dd`) to read its SD → `CNC120-golden.img`.
 3. Write that image to other SD cards.
 4. On each new Pi:
-   - Change hostname: `HAAS121`, `HAAS122`, `HAAS123`, `HAAS030`, `HAAS031`.
+   - Change hostname: `CNC121`, `CNC122`, `CNC123`, `CNC030`, `CNC031`.
    - Edit `/etc/hosts` to match hostname.
-   - Adjust `SHARE_ROOT` in `/home/admin/haas-sync.sh`:
+   - Adjust `SHARE_ROOT` in `/home/admin/cnc-sync.sh`:
      - Mills (120–123): same Mill root.
      - Lathes (030/031): point to the lathe programs folder.
    - Run:
      ```bash
-     ls /mnt/haasshare
+     ls /mnt/cncshare
      sync
      status
      ```
-   - Verify on the Haas control that USB programs match expectation.
+   - Verify on the CNC control that USB programs match expectation.
 
 ---
 
@@ -231,62 +231,62 @@ Recommended workflow:
 - Top-level:
 
   - `README.md` (this file)
-  - `README-haas-sync.md` – deeper dive on services, scripts, aliases
+  - `README-cnc-sync.md` – deeper dive on services, scripts, aliases
   - `SAFETY-NOTES.md` – sync/deletion safety, failure modes
 
 - On the Pi filesystem:
 
-  - `/home/admin/haas-sync.sh`
-  - `/etc/systemd/system/haas-sync.service`
-  - `/etc/systemd/system/haas-sync.timer`
-  - `/etc/systemd/system/mnt-haasshare.mount`
-  - `/etc/systemd/system/mnt-haasshare.automount`
-  - `/etc/samba/credentials-haas`
-  - `/var/log/haas-sync.log`
+  - `/home/admin/cnc-sync.sh`
+  - `/etc/systemd/system/cnc-sync.service`
+  - `/etc/systemd/system/cnc-sync.timer`
+  - `/etc/systemd/system/mnt-cncshare.mount`
+  - `/etc/systemd/system/mnt-cncshare.automount`
+  - `/etc/samba/credentials-cnc`
+  - `/var/log/cnc-sync.log`
   - `~/.bashrc` (contains `sync`, `status`, `off`, `fix` helpers)
 
 ---
 
-# README-haas-sync.md
+# README-cnc-sync.md
 
-# haas-sync – SMB ↔ USB Image Sync Engine
+# cnc-sync – SMB ↔ USB Image Sync Engine
 
-This document describes the **sync pipeline** that keeps a CNC program share and the Pi’s USB image in sync and exposes it to the Haas as a USB drive.
+This document describes the **sync pipeline** that keeps a CNC program share and the Pi’s USB image in sync and exposes it to the CNC as a USB drive.
 
 It covers:
 
-- The main sync script (`haas-sync.sh`)
+- The main sync script (`cnc-sync.sh`)
 - Systemd service + timer
 - SMB automount
 - Helper aliases/functions
 
 ---
 
-## 1. Main Script: `/home/admin/haas-sync.sh`
+## 1. Main Script: `/home/admin/cnc-sync.sh`
 
 ### Purpose
 
-`haas-sync.sh` is a **one-shot** script that:
+`cnc-sync.sh` is a **one-shot** script that:
 
-1. Ensures the SMB share is available at `/mnt/haasshare`.
-2. Detaches the USB gadget from the Haas.
+1. Ensures the SMB share is available at `/mnt/cncshare`.
+2. Detaches the USB gadget from the CNC.
 3. Mounts the local USB image `/piusb.bin` at `/mnt/piusb` RW.
 4. Applies **safe 2-way sync logic** between:
    - USB side: `/mnt/piusb`
-   - Network side: `$SHARE_ROOT` on `/mnt/haasshare`
+   - Network side: `$SHARE_ROOT` on `/mnt/cncshare`
 5. Unmounts `/mnt/piusb`.
-6. Reattaches the USB gadget **RW** for the Haas.
+6. Reattaches the USB gadget **RW** for the CNC.
 
 ### Key Variables
 
 ```bash
-LOG=/var/log/haas-sync.log
+LOG=/var/log/cnc-sync.log
 
 USB_IMG="/piusb.bin"
 USB_MNT="/mnt/piusb"
 
-# Example for HAAS120–123 mill
-SHARE_ROOT="/mnt/haasshare/Master Proven Prg/Mill/120-123 new 8-22"
+# Example for CNC120–123 mill
+SHARE_ROOT="/mnt/cncshare/Master Proven Prg/Mill/120-123 new 8-22"
 
 ADMIN_UID=1000
 ADMIN_GID=1000
@@ -304,7 +304,7 @@ To adapt for other machines:
 
 1. **Sanity checks:**
 
-   - `/mnt/haasshare` must be mounted (handled by systemd automount).
+   - `/mnt/cncshare` must be mounted (handled by systemd automount).
 
 2. **Detach gadget and mount USB image:**
 
@@ -332,43 +332,43 @@ To adapt for other machines:
 
    - `umount /mnt/piusb`
    - `modprobe g_mass_storage file=/piusb.bin stall=0 removable=1`\
-     (no `ro=1` → gadget is RW from Haas).
+     (no `ro=1` → gadget is RW from CNC).
 
 ### Logging
 
-All major steps log to `/var/log/haas-sync.log`, e.g.:
+All major steps log to `/var/log/cnc-sync.log`, e.g.:
 
 ```text
-[2025-11-20T08:53:06-06:00] haas-sync: start
-[2025-11-20T08:53:06-06:00] haas-sync: detaching g_mass_storage
-[2025-11-20T08:53:06-06:00] haas-sync: mounting /piusb.bin to /mnt/piusb (rw,uid=1000,gid=1000,umask=002)
-[2025-11-20T08:53:06-06:00] haas-sync: USB used=xxxxB, files=yy; SHARE used=zzzzB, files=nn
-[2025-11-20T08:53:06-06:00] haas-sync: starting Unison two-way sync with delete limit
-[2025-11-20T08:53:34-06:00] haas-sync: Unison complete
-[2025-11-20T08:53:34-06:00] haas-sync: unmounting /mnt/piusb
-[2025-11-20T08:53:34-06:00] haas-sync: reattaching g_mass_storage (RW)
-[2025-11-20T08:53:34-06:00] haas-sync: done
+[2025-11-20T08:53:06-06:00] cnc-sync: start
+[2025-11-20T08:53:06-06:00] cnc-sync: detaching g_mass_storage
+[2025-11-20T08:53:06-06:00] cnc-sync: mounting /piusb.bin to /mnt/piusb (rw,uid=1000,gid=1000,umask=002)
+[2025-11-20T08:53:06-06:00] cnc-sync: USB used=xxxxB, files=yy; SHARE used=zzzzB, files=nn
+[2025-11-20T08:53:06-06:00] cnc-sync: starting Unison two-way sync with delete limit
+[2025-11-20T08:53:34-06:00] cnc-sync: Unison complete
+[2025-11-20T08:53:34-06:00] cnc-sync: unmounting /mnt/piusb
+[2025-11-20T08:53:34-06:00] cnc-sync: reattaching g_mass_storage (RW)
+[2025-11-20T08:53:34-06:00] cnc-sync: done
 ```
 
 ---
 
 ## 2. Systemd Units
 
-### 2.1. `haas-sync.service`
+### 2.1. `cnc-sync.service`
 
-File: `/etc/systemd/system/haas-sync.service`
+File: `/etc/systemd/system/cnc-sync.service`
 
 ```ini
 [Unit]
 Description=Sync SMB share to local USB image and attach RO (g_mass_storage)
-After=mnt-haasshare.automount
-Wants=mnt-haasshare.automount
+After=mnt-cncshare.automount
+Wants=mnt-cncshare.automount
 
 [Service]
 Type=oneshot
 User=root
 Group=root
-ExecStart=/usr/bin/flock -n /run/lock/haas-sync.lock /home/admin/haas-sync.sh
+ExecStart=/usr/bin/flock -n /run/lock/cnc-sync.lock /home/admin/cnc-sync.sh
 Nice=10
 
 [Install]
@@ -381,18 +381,18 @@ Notes:
 - `flock` prevents overlapping runs.
 - `After/Wants` ensure the automount is active before syncing.
 
-### 2.2. `haas-sync.timer`
+### 2.2. `cnc-sync.timer`
 
-File: `/etc/systemd/system/haas-sync.timer`
+File: `/etc/systemd/system/cnc-sync.timer`
 
 ```ini
 [Unit]
-Description=Periodic sync of Haas SMB share to USB image
+Description=Periodic sync of CNC SMB share to USB image
 
 [Timer]
 OnBootSec=2min
 OnUnitActiveSec=5min
-Unit=haas-sync.service
+Unit=cnc-sync.service
 
 [Install]
 WantedBy=timers.target
@@ -401,47 +401,47 @@ WantedBy=timers.target
 Behavior:
 
 - Waits 2 minutes after boot.
-- Then runs `haas-sync.service` every 5 minutes.
+- Then runs `cnc-sync.service` every 5 minutes.
 - Can be enabled/disabled with:
   ```bash
-  sudo systemctl enable haas-sync.timer
-  sudo systemctl disable haas-sync.timer
+  sudo systemctl enable cnc-sync.timer
+  sudo systemctl disable cnc-sync.timer
   ```
 
 ---
 
 ## 3. SMB Automount
 
-### 3.1. `mnt-haasshare.mount`
+### 3.1. `mnt-cncshare.mount`
 
-File: `/etc/systemd/system/mnt-haasshare.mount`
+File: `/etc/systemd/system/mnt-cncshare.mount`
 
 ```ini
 [Unit]
-Description=SMB mount for Haas share (Weld-KC01\cnc programs)
+Description=SMB mount for CNC share (Weld-KC01\cnc programs)
 After=network-online.target
 Wants=network-online.target
 
 [Mount]
 What=//Weld-KC01/cnc programs
-Where=/mnt/haasshare
+Where=/mnt/cncshare
 Type=cifs
-Options=credentials=/etc/samba/credentials-haas,iocharset=utf8,vers=3.0,sec=ntlmssp,noperm,uid=1000,gid=1000,file_mode=0775,dir_mode=0775
+Options=credentials=/etc/samba/credentials-cnc,iocharset=utf8,vers=3.0,sec=ntlmssp,noperm,uid=1000,gid=1000,file_mode=0775,dir_mode=0775
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-### 3.2. `mnt-haasshare.automount`
+### 3.2. `mnt-cncshare.automount`
 
-File: `/etc/systemd/system/mnt-haasshare.automount`
+File: `/etc/systemd/system/mnt-cncshare.automount`
 
 ```ini
 [Unit]
-Description=Automount Haas SMB share at /mnt/haasshare
+Description=Automount CNC SMB share at /mnt/cncshare
 
 [Automount]
-Where=/mnt/haasshare
+Where=/mnt/cncshare
 
 [Install]
 WantedBy=multi-user.target
@@ -449,7 +449,7 @@ WantedBy=multi-user.target
 
 ### 3.3. Credentials File
 
-File: `/etc/samba/credentials-haas`
+File: `/etc/samba/credentials-cnc`
 
 ```text
 username=SCAN4
@@ -460,7 +460,7 @@ domain=weldracing.local
 Permissions:
 
 ```bash
-sudo chmod 600 /etc/samba/credentials-haas
+sudo chmod 600 /etc/samba/credentials-cnc
 ```
 
 ---
@@ -472,24 +472,24 @@ These live in `admin`’s `~/.bashrc` and are part of the standard setup.
 ### 4.1. Sync aliases
 
 ```bash
-# Run a sync (no-password sudo already configured for haas-sync)
-alias haas-sync='sudo systemctl start haas-sync.service'
-alias sync='haas-sync'
-alias hsync='haas-sync'
+# Run a sync (no-password sudo already configured for cnc-sync)
+alias cnc-sync='sudo systemctl start cnc-sync.service'
+alias sync='cnc-sync'
+alias hsync='cnc-sync'
 ```
 
 ### 4.2. Status function
 
 ```bash
 status() {
-  echo "=== haas-sync.service ==="
-  sudo systemctl status haas-sync.service --no-pager
+  echo "=== cnc-sync.service ==="
+  sudo systemctl status cnc-sync.service --no-pager
   echo
-  echo "=== haas-sync.timer ==="
-  sudo systemctl status haas-sync.timer --no-pager
+  echo "=== cnc-sync.timer ==="
+  sudo systemctl status cnc-sync.timer --no-pager
   echo
-  echo "=== last 20 lines of /var/log/haas-sync.log ==="
-  sudo tail -n 20 /var/log/haas-sync.log
+  echo "=== last 20 lines of /var/log/cnc-sync.log ==="
+  sudo tail -n 20 /var/log/cnc-sync.log
 }
 ```
 
@@ -497,14 +497,14 @@ status() {
 
 ```bash
 off() {
-  echo "[off] Stopping haas-sync timer and service..."
-  sudo systemctl stop haas-sync.timer 2>/dev/null || true
-  sudo systemctl stop haas-sync.service 2>/dev/null || true
+  echo "[off] Stopping cnc-sync timer and service..."
+  sudo systemctl stop cnc-sync.timer 2>/dev/null || true
+  sudo systemctl stop cnc-sync.service 2>/dev/null || true
 
   echo "[off] Detaching USB gadget and unmounting filesystems..."
   sudo modprobe -r g_mass_storage 2>/dev/null || true
   sudo umount /mnt/piusb 2>/dev/null || true
-  sudo umount /mnt/haasshare 2>/dev/null || true
+  sudo umount /mnt/cncshare 2>/dev/null || true
 
   echo "[off] Shutting down Pi now..."
   sudo shutdown -h now
@@ -515,10 +515,10 @@ off() {
 
 ```bash
 fix() {
-  echo "[fix] Checking Haas Pi USB setup..."
+  echo "[fix] Checking CNC Pi USB setup..."
 
-  if [ ! -f /etc/samba/credentials-haas ]; then
-    echo "[fix] ERROR: /etc/samba/credentials-haas not found."
+  if [ ! -f /etc/samba/credentials-cnc ]; then
+    echo "[fix] ERROR: /etc/samba/credentials-cnc not found."
     return 1
   fi
 
@@ -529,18 +529,18 @@ fix() {
 
   echo "[fix] Reloading systemd units and ensuring automount is enabled..."
   sudo systemctl daemon-reload
-  sudo systemctl enable mnt-haasshare.automount >/dev/null 2>&1 || true
-  sudo systemctl start mnt-haasshare.automount >/dev/null 2>&1 || true
+  sudo systemctl enable mnt-cncshare.automount >/dev/null 2>&1 || true
+  sudo systemctl start mnt-cncshare.automount >/dev/null 2>&1 || true
 
-  echo "[fix] Forcing SMB mount (ls /mnt/haasshare)..."
-  if ! ls /mnt/haasshare >/dev/null 2>&1; then
-    echo "[fix] ERROR: Unable to list /mnt/haasshare."
+  echo "[fix] Forcing SMB mount (ls /mnt/cncshare)..."
+  if ! ls /mnt/cncshare >/dev/null 2>&1; then
+    echo "[fix] ERROR: Unable to list /mnt/cncshare."
     return 1
   fi
 
-  echo "[fix] Stopping haas-sync timer and service..."
-  sudo systemctl stop haas-sync.timer 2>/dev/null || true
-  sudo systemctl stop haas-sync.service 2>/dev/null || true
+  echo "[fix] Stopping cnc-sync timer and service..."
+  sudo systemctl stop cnc-sync.timer 2>/dev/null || true
+  sudo systemctl stop cnc-sync.service 2>/dev/null || true
 
   echo "[fix] Detaching g_mass_storage and unmounting /mnt/piusb..."
   sudo modprobe -r g_mass_storage 2>/dev/null || true
@@ -552,11 +552,11 @@ fix() {
   echo "[fix] Reattaching g_mass_storage (RW)..."
   sudo modprobe g_mass_storage file=/piusb.bin stall=0 removable=1
 
-  echo "[fix] Restarting haas-sync.timer..."
-  sudo systemctl start haas-sync.timer 2>/dev/null || true
+  echo "[fix] Restarting cnc-sync.timer..."
+  sudo systemctl start cnc-sync.timer 2>/dev/null || true
 
-  echo "[fix] Forcing one haas-sync.service run..."
-  sudo systemctl start haas-sync.service
+  echo "[fix] Forcing one cnc-sync.service run..."
+  sudo systemctl start cnc-sync.service
 
   echo "[fix] Done. Use 'status' to verify recent sync logs."
 }
@@ -600,21 +600,21 @@ NetworkManager will prefer `preconfigured` when both are in range, and fall back
 
 ## 6. Cloning Checklist (Per New Pi)
 
-1. Write `HAAS120-golden.img` to SD.
+1. Write `CNC120-golden.img` to SD.
 2. Boot Pi, SSH in as `admin`.
 3. Change hostname:
    ```bash
-   sudo hostnamectl set-hostname HAAS121   # adjust per machine
+   sudo hostnamectl set-hostname CNC121   # adjust per machine
    sudo nano /etc/hosts                    # update 127.0.1.1 line
    ```
-4. If needed, change `SHARE_ROOT` in `/home/admin/haas-sync.sh`.
+4. If needed, change `SHARE_ROOT` in `/home/admin/cnc-sync.sh`.
 5. Test:
    ```bash
-   ls /mnt/haasshare
+   ls /mnt/cncshare
    sync
    status
    ```
-6. Verify on Haas control: USB contents match expectations.
+6. Verify on CNC control: USB contents match expectations.
 
 ---
 
@@ -660,7 +660,7 @@ Even if both sides are generally healthy:
 
 ### 2.1. Heuristic Guard – “USB Looks Wiped” Detection
 
-In `/home/admin/haas-sync.sh`:
+In `/home/admin/cnc-sync.sh`:
 
 ```bash
 MIN_USB_BYTES=3500000000   # 3.5 GB
@@ -675,11 +675,11 @@ share_used=$(df -B1 "$SHARE_ROOT" | awk 'NR==2 {print $3}')
 usb_files=$(find "$USB_MNT" -mindepth 1 -type f 2>/dev/null | wc -l || echo 0)
 share_files=$(find "$SHARE_ROOT" -mindepth 1 -type f 2>/dev/null | wc -l || echo 0)
 
-log "haas-sync: USB used=${usb_used}B, files=${usb_files}; SHARE used=${share_used}B, files=${share_files}"
+log "cnc-sync: USB used=${usb_used}B, files=${usb_files}; SHARE used=${share_used}B, files=${share_files}"
 
 if [ "$usb_used" -lt "$MIN_USB_BYTES" ] && [ "$share_files" -gt "$MIN_SHARE_FILES" ]; then
-  log "haas-sync: WARNING: USB side looks small/empty; protecting network share."
-  log "haas-sync: Rebuilding USB image from network share via rsync (share -> USB only)."
+  log "cnc-sync: WARNING: USB side looks small/empty; protecting network share."
+  log "cnc-sync: Rebuilding USB image from network share via rsync (share -> USB only)."
 
   rsync -a --delete "$SHARE_ROOT"/ "$USB_MNT"/
 else
@@ -742,7 +742,7 @@ Conditions:
 Behavior:
 
 - Two-way Unison:
-  - New/changed files on USB (Haas) propagate to the share.
+  - New/changed files on USB (CNC) propagate to the share.
   - New/changed files on share propagate to USB.
   - Small-scale deletions can propagate in either direction, subject to `-maxdelete 100`.
 
@@ -774,9 +774,9 @@ After this repair, subsequent syncs go back to normal two-way behavior.
 
 `off` is a **safe shutdown** helper:
 
-- Stops `haas-sync.timer` and `haas-sync.service`
+- Stops `cnc-sync.timer` and `cnc-sync.service`
 - Detaches `g_mass_storage`
-- Unmounts `/mnt/piusb` and `/mnt/haasshare`
+- Unmounts `/mnt/piusb` and `/mnt/cncshare`
 - Shuts the Pi down via `shutdown -h now`
 
 This ensures no sync is in progress, nothing is mounted, and the Pi powers off cleanly. It does **not** itself modify contents of `/piusb.bin` or the share.
@@ -786,11 +786,11 @@ This ensures no sync is in progress, nothing is mounted, and the Pi powers off c
 `fix` is the **“USB chain repair”** helper:
 
 1. Ensures:
-   - `/etc/samba/credentials-haas` exists
+   - `/etc/samba/credentials-cnc` exists
    - `/piusb.bin` exists
-2. Reloads systemd units and ensures `mnt-haasshare.automount` is enabled.
-3. Forces the SMB share to mount (by `ls /mnt/haasshare`).
-4. Stops `haas-sync.timer` and `haas-sync.service`.
+2. Reloads systemd units and ensures `mnt-cncshare.automount` is enabled.
+3. Forces the SMB share to mount (by `ls /mnt/cncshare`).
+4. Stops `cnc-sync.timer` and `cnc-sync.service`.
 5. Detaches gadget and unmounts `/mnt/piusb`.
 6. Runs:
    ```bash
@@ -801,11 +801,11 @@ This ensures no sync is in progress, nothing is mounted, and the Pi powers off c
    ```bash
    sudo modprobe g_mass_storage file=/piusb.bin stall=0 removable=1
    ```
-8. Restarts the timer and forces one immediate `haas-sync.service` run.
+8. Restarts the timer and forces one immediate `cnc-sync.service` run.
 
 Important:
 
-- If `fsck.vfat` has to do heavy repairs and “shrinks” or wipes parts of the USB filesystem, the **next** `haas-sync` run will see a “small/empty USB” and fall into the **repair-from-share** path (rsync SHARE → USB).
+- If `fsck.vfat` has to do heavy repairs and “shrinks” or wipes parts of the USB filesystem, the **next** `cnc-sync` run will see a “small/empty USB” and fall into the **repair-from-share** path (rsync SHARE → USB).
 - That is by design: after filesystem repair, we treat the network share as canonical to avoid sending bogus deletions upstream.
 
 ---
@@ -815,7 +815,7 @@ Important:
 To avoid bypassing the safety logic:
 
 1. **Don’t run Unison manually** against the raw SMB and USB paths without the same options:
-   - No interactive manual `unison /mnt/piusb /mnt/haasshare/...` without `-maxdelete` and `-perms 0`.
+   - No interactive manual `unison /mnt/piusb /mnt/cncshare/...` without `-maxdelete` and `-perms 0`.
 2. **Don’t mount ****\`\`**** and start deleting large swaths manually**, then let a sync run, unless you actually intend to propagate those deletions.
 3. **Don’t recreate ****\`\`**** from scratch** without immediately seeding it from the share:
    - If you must recreate it:
@@ -840,17 +840,17 @@ Symptoms:
 
 Action:
 
-- Let `haas-sync` complete.
+- Let `cnc-sync` complete.
 - Confirm:
   - `status` shows successful sync.
-  - Haas USB sees expected files.
+  - CNC USB sees expected files.
 - No action needed on the share; it was never touched.
 
 ### Scenario B – Unison hits `-maxdelete` limit
 
 Symptoms:
 
-- `status` shows `haas-sync.service` failed.
+- `status` shows `cnc-sync.service` failed.
 - Log shows Unison complaining about exceeding `-maxdelete 100`.
 
 Action:
@@ -867,7 +867,7 @@ Action:
 If you really want to delete a ton of files across both USB and share:
 
 - Do it **from the share** deliberately (with backups).
-- Temporarily bump `-maxdelete` in `haas-sync.sh` (with eyes open).
+- Temporarily bump `-maxdelete` in `cnc-sync.sh` (with eyes open).
 - Run `sync` and verify.
 - Immediately restore a reasonable `-maxdelete` (e.g. 100).
 

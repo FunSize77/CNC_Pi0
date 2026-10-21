@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# haas-sync - Sync /piusb.bin contents with CNC program share (safe + resilient + recovery)
+# cnc-sync - Sync /piusb.bin contents with CNC program share (safe + resilient + recovery)
 #
 # Modes:
 #   Default (no args): "share" mode
@@ -20,18 +20,18 @@
 # Safety behavior:
 #   - HARD FAIL if we cannot detach g_mass_storage (refuse to touch image while exported).
 #   - HARD FAIL if we cannot unmount cleanly.
-#   - Always reattach g_mass_storage before exiting on Unison fatal errors (so Haas isn't left dead).
+#   - Always reattach g_mass_storage before exiting on Unison fatal errors (so CNC isn't left dead).
 
 set -euo pipefail
 
-LOGFILE="/var/log/haas-sync.log"
+LOGFILE="/var/log/cnc-sync.log"
 
 ########## CONFIG - EDIT THESE FOR EACH PI ##########
-HAAS_HOSTNAME="haas120"
+CNC_HOSTNAME="cnc120"
 
 # CNC program root directory on the *share* side.
 # This should already be mounted (e.g. via /etc/fstab using CIFS/SMB).
-SHARE_ROOT="/mnt/haasshare/Master Proven Prg/Mill/120-123 new 8-22"   # <-- CHANGE THIS PATH
+SHARE_ROOT="/mnt/cncshare/Master Proven Prg/Mill/120-123 new 8-22"   # <-- CHANGE THIS PATH
 
 # Backing image exported over USB gadget
 PIUSB_IMAGE="/piusb.bin"          # leave unless you moved the image
@@ -40,8 +40,8 @@ PIUSB_IMAGE="/piusb.bin"          # leave unless you moved the image
 PIUSB_MOUNT="/mnt/piusb"          # leave unless you know why you're changing it
 
 # Where we store the last-known hash of the share
-STATE_DIR="/var/lib/haas-sync"
-SHARE_HASH_FILE="${STATE_DIR}/share_hash_${HAAS_HOSTNAME}.txt"
+STATE_DIR="/var/lib/cnc-sync"
+SHARE_HASH_FILE="${STATE_DIR}/share_hash_${CNC_HOSTNAME}.txt"
 
 # --- SAFETY / RECOVERY ---
 MIN_USB_FILES=250                 # if the mounted USB image has fewer files than this -> recovery restore from share
@@ -49,10 +49,10 @@ UNISON_RETRIES=3                  # retry Unison if files changed during sync
 UNISON_RETRY_SLEEP=2              # seconds between retries
 
 # Prevent overlapping timer runs
-LOCKFILE="/run/haas-sync.lock"
+LOCKFILE="/run/cnc-sync.lock"
 
 # Optional backups of the image BEFORE touching it
-BACKUP_DIR="/var/backups/haas-sync"
+BACKUP_DIR="/var/backups/cnc-sync"
 BACKUP_KEEP=0                    # keep newest N backups; 0 disables backups
 
 ########## END CONFIG ##########
@@ -64,7 +64,7 @@ fi
 
 log() {
   local msg="$1"
-  echo "[$(date -Is)] haas-sync(${MODE}): $msg" | tee -a "$LOGFILE"
+  echo "[$(date -Is)] cnc-sync(${MODE}): $msg" | tee -a "$LOGFILE"
 }
 
 error_exit() {
@@ -105,12 +105,12 @@ fi
 # One run at a time
 exec 9>"$LOCKFILE"
 if ! flock -n 9; then
-  log "Another haas-sync is already running; exiting."
+  log "Another cnc-sync is already running; exiting."
   exit 0
 fi
 
 log "start"
-log "Using HAAS_HOSTNAME='${HAAS_HOSTNAME}'"
+log "Using CNC_HOSTNAME='${CNC_HOSTNAME}'"
 log "Using SHARE_ROOT='${SHARE_ROOT}'"
 
 # Basic sanity checks
@@ -155,19 +155,19 @@ else
   log "g_mass_storage is not currently loaded; nothing to detach."
 fi
 
-sleep 1  # give Haas/Windows a moment to see the disconnect
+sleep 1  # give CNC/Windows a moment to see the disconnect
 
 ########## Optional: backup the image BEFORE touching it ##########
 
 if [[ "$BACKUP_KEEP" -gt 0 ]]; then
   mkdir -p "$BACKUP_DIR"
   TS="$(date +%Y%m%d-%H%M%S)"
-  BAK="${BACKUP_DIR}/piusb_${HAAS_HOSTNAME}_${TS}.bin"
+  BAK="${BACKUP_DIR}/piusb_${CNC_HOSTNAME}_${TS}.bin"
   log "Backing up $PIUSB_IMAGE -> $BAK"
   cp -f "$PIUSB_IMAGE" "$BAK" || error_exit "Backup failed; aborting to avoid making things worse."
 
   # Rotate backups (keep newest N)
-  ls -1t "${BACKUP_DIR}/piusb_${HAAS_HOSTNAME}_"*.bin 2>/dev/null | tail -n +"$((BACKUP_KEEP+1))" | xargs -r rm -f
+  ls -1t "${BACKUP_DIR}/piusb_${CNC_HOSTNAME}_"*.bin 2>/dev/null | tail -n +"$((BACKUP_KEEP+1))" | xargs -r rm -f
 fi
 
 ########## 2) Mount /piusb.bin ##########

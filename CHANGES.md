@@ -4,8 +4,8 @@
 
 ### 1. **Alias Conflict with System Command**
 - **Problem**: The `sync` alias was overriding the Linux `sync` command (used to flush file system buffers)
-- **Solution**: Removed the `sync` alias, kept `hsync` and `haas-sync` instead
-- **Impact**: Users should use `hsync` or `haas-sync` to trigger manual syncs
+- **Solution**: Removed the `sync` alias, kept `hsync` and `cnc-sync` instead
+- **Impact**: Users should use `hsync` or `cnc-sync` to trigger manual syncs
 
 ### 2. **Dependency Sequence**
 - **Problem**: Services could be created even if `/piusb.bin` failed to create
@@ -13,27 +13,27 @@
 - **Impact**: Bootstrap will fail fast if disk image creation fails
 
 ### 3. **Incorrect Path References**
-- **Problem**: Final message referenced wrong path `/home/admin/haas-sync.sh`
-- **Solution**: Updated to correct path `/usr/local/sbin/haas-sync`
+- **Problem**: Final message referenced wrong path `/home/admin/cnc-sync.sh`
+- **Solution**: Updated to correct path `/usr/local/sbin/cnc-sync`
 - **Impact**: Users now get accurate instructions
 
 ### 4. **Machine Configuration Complexity**
 - **Problem**: Manual editing required for each machine with different paths
 - **Solution**: Created `configure-machine.sh` helper script
-- **Impact**: Easy configuration with: `./configure-machine.sh haas030`
+- **Impact**: Easy configuration with: `./configure-machine.sh cnc030`
 
 ## New Features
 
 ### 1. **configure-machine.sh Script**
 Automated configuration for known machines:
-- `haas030` → Lathe share path
-- `haas120`, `haas122` → Mill share path
+- `cnc030` → Lathe share path
+- `cnc120`, `cnc122` → Mill share path
 - Interactive confirmation before applying changes
 - Shows diff preview
 
 ### 2. **MULTI_MACHINE_DEPLOYMENT.md**
 Comprehensive guide covering:
-- Configuration for 3 machines (haas030, haas120, haas122)
+- Configuration for 3 machines (cnc030, cnc120, cnc122)
 - Installation steps for each machine
 - Verification checklist
 - Troubleshooting guide
@@ -46,18 +46,18 @@ Comprehensive guide covering:
 
 ## Deployment Workflow
 
-For each machine (haas030, haas120, haas122):
+For each machine (cnc030, cnc120, cnc122):
 
 ```bash
 # 1. Copy files to Pi
-scp -r haas-pi0-usb-sync bootstrap-haaspi_l.sh configure-machine.sh admin@haas030.local:~/
+scp -r cnc-pi0-usb-sync bootstrap-cncpi_l.sh configure-machine.sh admin@cnc030.local:~/
 
 # 2. Run bootstrap
-ssh admin@haas030.local
-./bootstrap-haaspi_l.sh
+ssh admin@cnc030.local
+./bootstrap-cncpi_l.sh
 
 # 3. Configure for specific machine
-./configure-machine.sh haas030
+./configure-machine.sh cnc030
 
 # 4. Test
 hsync
@@ -69,15 +69,15 @@ status
 | Old Command | New Command | Notes |
 |-------------|-------------|-------|
 | `sync` | `hsync` | Changed to avoid system command conflict |
-| - | `haas-sync` | Same as hsync, more explicit |
+| - | `cnc-sync` | Same as hsync, more explicit |
 | `status` | `status` | ✓ No change (not a system command) |
 | `off` | `off` | ✓ No change |
 | `fix` | `fix` | ✓ No change |
 
 ## Files Modified
 
-1. `bootstrap-haaspi_l.sh` - Fixed aliases, added verification, updated messages
-2. `haas-pi0-usb-sync/README.md` - Updated quick start instructions
+1. `bootstrap-cncpi_l.sh` - Fixed aliases, added verification, updated messages
+2. `cnc-pi0-usb-sync/README.md` - Updated quick start instructions
 
 ## Files Added
 
@@ -91,7 +91,7 @@ Before deploying to production:
 
 - [ ] Bootstrap runs without errors
 - [ ] /piusb.bin is created successfully
-- [ ] haas-sync script is installed to /usr/local/sbin/
+- [ ] cnc-sync script is installed to /usr/local/sbin/
 - [ ] All systemd services are created
 - [ ] Services are enabled and started
 - [ ] configure-machine.sh correctly sets hostname and share path
@@ -104,6 +104,6 @@ Before deploying to production:
 
 | Machine | Type | Share Path |
 |---------|------|-----------|
-| haas030 | Lathe | `/mnt/haasshare/Master Proven Prg/Lathe/` |
-| haas120 | Mill | `/mnt/haasshare/Master Proven Prg/Mill/120-123 new 8-22` |
-| haas122 | Mill | `/mnt/haasshare/Master Proven Prg/Mill/120-123 new 8-22` |
+| cnc030 | Lathe | `/mnt/cncshare/Master Proven Prg/Lathe/` |
+| cnc120 | Mill | `/mnt/cncshare/Master Proven Prg/Mill/120-123 new 8-22` |
+| cnc122 | Mill | `/mnt/cncshare/Master Proven Prg/Mill/120-123 new 8-22` |

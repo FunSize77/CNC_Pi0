@@ -1,5 +1,5 @@
 [Unit]
-Description=USB Mass Storage Gadget for HAAS
+Description=USB Mass Storage Gadget for CNC
 After=local-fs.target
 Requires=local-fs.target
 

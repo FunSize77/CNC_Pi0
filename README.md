@@ -1,6 +1,6 @@
-# HaasPi0 - Raspberry Pi USB Wi-Fi Sync for CNC Machines
+# CncPi0 - Raspberry Pi USB Wi-Fi Sync for CNC Machines
 
-Turn a Raspberry Pi Zero 2W into a **network-synced USB stick** for Haas CNC machines. The Pi appears as a USB flash drive to the CNC while automatically syncing with your network share over Wi-Fi.
+Turn a Raspberry Pi Zero 2W into a **network-synced USB stick** for CNC CNC machines. The Pi appears as a USB flash drive to the CNC while automatically syncing with your network share over Wi-Fi.
 
 ## Features
 
@@ -9,7 +9,7 @@ Turn a Raspberry Pi Zero 2W into a **network-synced USB stick** for Haas CNC mac
 - 🔒 **Safety protections** - prevents accidental deletion of network files
 - ⚡ **Smart syncing** - only syncs when changes detected
 - 🛠️ **Easy management** - simple bash commands for all operations
-- 🎯 **Multi-machine support** - pre-configured for haas030, haas120, haas122
+- 🎯 **Multi-machine support** - pre-configured for cnc030, cnc120, cnc122
 
 ## Quick Start
 
@@ -23,25 +23,25 @@ Turn a Raspberry Pi Zero 2W into a **network-synced USB stick** for Haas CNC mac
 
 ```bash
 # Copy project files to your Pi
-scp -r . admin@<pi-hostname>:~/haaspi0/
+scp -r . admin@<pi-hostname>:~/cncpi0/
 
 # SSH into the Pi
 ssh admin@<pi-hostname>
 
 # Run installation
-cd ~/haaspi0
-./bootstrap-haaspi_l.sh
+cd ~/cncpi0
+./bootstrap-cncpi_l.sh
 ```
 
 ### 3. Configure for Your Machine
 
 ```bash
 # For lathe 030:
-./configure-machine.sh haas030
+./configure-machine.sh cnc030
 
 # For mills 120-123:
-./configure-machine.sh haas120
-./configure-machine.sh haas122
+./configure-machine.sh cnc120
+./configure-machine.sh cnc122
 ```
 
 ### 4. You're Done!
@@ -54,7 +54,7 @@ After installation, these commands are available:
 
 | Command | Description |
 |---------|-------------|
-| `hsync` or `haas-sync` | Manually trigger a sync |
+| `hsync` or `cnc-sync` | Manually trigger a sync |
 | `status` | Show service status and recent logs |
 | `off` | Safely shut down the Pi |
 | `fix` | Repair utility for common issues |
@@ -74,17 +74,17 @@ Network Share (WiFi) ←→ Raspberry Pi ←→ CNC Machine (USB)
 ## Project Structure
 
 ```
-HaasPi0/
-├── bootstrap-haaspi_l.sh          # Automated installation script
+CncPi0/
+├── bootstrap-cncpi_l.sh          # Automated installation script
 ├── configure-machine.sh           # Machine configuration helper
 ├── MULTI_MACHINE_DEPLOYMENT.md   # Multi-machine deployment guide
 ├── CHANGES.md                     # Change log
-├── haas-pi0-usb-sync/
-│   ├── scripts/haas-sync          # Main sync script
+├── cnc-pi0-usb-sync/
+│   ├── scripts/cnc-sync          # Main sync script
 │   ├── systemd/                   # Service and timer units
 │   ├── docs/DEPLOYMENT.md         # Detailed deployment guide
 │   └── README.md                  # Technical documentation
-├── haas_pi_0_docs.md             # Comprehensive project documentation
+├── cnc_pi_0_docs.md             # Comprehensive project documentation
 ├── active_check.ps1               # Network connectivity checker (Windows)
 └── keepalive.sh                   # USB keepalive configuration
 ```
@@ -93,15 +93,15 @@ HaasPi0/
 
 | Machine | Type  | Share Path |
 |---------|-------|-----------|
-| haas030 | Lathe | `/mnt/haasshare/Master Proven Prg/Lathe/` |
-| haas120 | Mill  | `/mnt/haasshare/Master Proven Prg/Mill/120-123 new 8-22` |
-| haas122 | Mill  | `/mnt/haasshare/Master Proven Prg/Mill/120-123 new 8-22` |
+| cnc030 | Lathe | `/mnt/cncshare/Master Proven Prg/Lathe/` |
+| cnc120 | Mill  | `/mnt/cncshare/Master Proven Prg/Mill/120-123 new 8-22` |
+| cnc122 | Mill  | `/mnt/cncshare/Master Proven Prg/Mill/120-123 new 8-22` |
 
 ## Documentation
 
-- 📖 **[MULTI_MACHINE_DEPLOYMENT.md](MULTI_MACHINE_DEPLOYMENT.md)** - Deploy to multiple machines (haas030, haas120, haas122)
-- 📖 **[haas-pi0-usb-sync/docs/DEPLOYMENT.md](haas-pi0-usb-sync/docs/DEPLOYMENT.md)** - Detailed installation and troubleshooting
-- 📖 **[haas_pi_0_docs.md](haas_pi_0_docs.md)** - Complete system documentation
+- 📖 **[MULTI_MACHINE_DEPLOYMENT.md](MULTI_MACHINE_DEPLOYMENT.md)** - Deploy to multiple machines (cnc030, cnc120, cnc122)
+- 📖 **[cnc-pi0-usb-sync/docs/DEPLOYMENT.md](cnc-pi0-usb-sync/docs/DEPLOYMENT.md)** - Detailed installation and troubleshooting
+- 📖 **[cnc_pi_0_docs.md](cnc_pi_0_docs.md)** - Complete system documentation
 - 📖 **[CHANGES.md](CHANGES.md)** - Recent changes and fixes
 
 ## Requirements
@@ -138,7 +138,7 @@ nmcli device status
 
 ### Share not mounting
 ```bash
-sudo journalctl -u mnt-haasshare.mount
+sudo journalctl -u mnt-cncshare.mount
 ```
 
 ### USB not appearing on CNC
@@ -149,11 +149,11 @@ sudo systemctl restart usb-gadget.service
 
 ### Sync errors
 ```bash
-sudo tail -n 100 /var/log/haas-sync.log
+sudo tail -n 100 /var/log/cnc-sync.log
 fix  # Run the repair utility
 ```
 
-See [DEPLOYMENT.md](haas-pi0-usb-sync/docs/DEPLOYMENT.md) for detailed troubleshooting.
+See [DEPLOYMENT.md](cnc-pi0-usb-sync/docs/DEPLOYMENT.md) for detailed troubleshooting.
 
 ## Contributing
 
@@ -170,10 +170,10 @@ Internal project for Weld Racing CNC operations.
 ## Support
 
 For issues or questions, check:
-1. [DEPLOYMENT.md](haas-pi0-usb-sync/docs/DEPLOYMENT.md) - Detailed troubleshooting
+1. [DEPLOYMENT.md](cnc-pi0-usb-sync/docs/DEPLOYMENT.md) - Detailed troubleshooting
 2. [MULTI_MACHINE_DEPLOYMENT.md](MULTI_MACHINE_DEPLOYMENT.md) - Multi-machine setup
-3. Logs at `/var/log/haas-sync.log`
+3. Logs at `/var/log/cnc-sync.log`
 
 ---
 
-**Status**: ✅ Production Ready - Currently deployed on haas030, haas120, haas122
+**Status**: ✅ Production Ready - Currently deployed on cnc030, cnc120, cnc122

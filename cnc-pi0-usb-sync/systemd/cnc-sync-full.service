@@ -1,0 +1,6 @@
+[Unit]
+Description=Full CNC sync (force detach/mount/unison)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/cnc-sync --full

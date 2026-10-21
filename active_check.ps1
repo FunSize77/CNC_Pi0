@@ -1,6 +1,6 @@
-# Check-HaasPis.ps1
+# Check-CNCPis.ps1
 
-$hosts = "haas120","haas121","haas122","haas123","haas030","haas031"
+$hosts = "cnc120","cnc121","cnc122","cnc123","cnc030","cnc031"
 
 foreach ($h in $hosts) {
     $name = "$h.local"
